@@ -1,0 +1,228 @@
+@using Campus360.Models
+@using Campus360.Services
+@inject CalendarService CalendarService
+
+<div class="card h-100">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            <i class="bi bi-calendar3 me-2"></i>@CurrentDate.ToString("MMMM yyyy")
+        </h6>
+        @if (!string.IsNullOrEmpty(ViewAllUrl))
+        {
+            <a href="@ViewAllUrl" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-arrows-fullscreen"></i>
+            </a>
+        }
+    </div>
+    <div class="card-body p-2">
+        <div class="mini-calendar">
+            <!-- Calendar Header -->
+            <div class="row text-center mb-2">
+                @foreach (var day in new[] { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" })
+                {
+                    <div class="col p-1">
+                        <small class="text-muted fw-medium">@day</small>
+                    </div>
+                }
+            </div>
+            
+            <!-- Calendar Grid -->
+            @for (int week = 0; week < 6; week++)
+            {
+                <div class="row">
+                    @for (int day = 0; day < 7; day++)
+                    {
+                        var cellDate = GetCellDate(week, day);
+                        var hasEvents = eventDates.Contains(cellDate.Date);
+                        var isToday = cellDate.Date == DateTime.Today;
+                        var isCurrentMonth = cellDate.Month == CurrentDate.Month;
+                        
+                        <div class="col p-1">
+                            <div class="mini-calendar-cell @GetCellClass(cellDate, hasEvents, isToday, isCurrentMonth)" 
+                                 title="@GetCellTitle(cellDate, hasEvents)">
+                                <span class="@GetDayClass(isToday, isCurrentMonth)">
+                                    @cellDate.Day
+                                </span>
+                                @if (hasEvents && isCurrentMonth)
+                                {
+                                    <div class="event-indicator"></div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+        
+        @if (todayEvents?.Any() == true)
+        {
+            <div class="mt-3 pt-3 border-top">
+                <h6 class="text-primary mb-2" style="font-size: 0.85rem;">
+                    <i class="bi bi-dot text-success"></i>Today's Events
+                </h6>
+                @foreach (var eventItem in todayEvents.Take(3))
+                {
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge rounded-pill me-2" 
+                              style="background-color: @GetEventTypeColor(eventItem.Type); font-size: 0.6rem;">
+                            @eventItem.Type.ToString()[0]
+                        </span>
+                        <div class="flex-grow-1">
+                            <div style="font-size: 0.8rem;" class="fw-medium">@eventItem.Title</div>
+                            @if (eventItem.HasTime)
+                            {
+                                <small class="text-muted">@eventItem.StartDate.ToString("h:mm tt")</small>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .mini-calendar-cell {
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .mini-calendar-cell:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .mini-calendar-cell.today {
+        background-color: #0d6efd;
+        color: white;
+    }
+    
+    .mini-calendar-cell.has-events {
+        border: 1px solid #dee2e6;
+    }
+    
+    .event-indicator {
+        position: absolute;
+        bottom: 2px;
+        right: 2px;
+        width: 4px;
+        height: 4px;
+        background-color: #28a745;
+        border-radius: 50%;
+    }
+    
+    .today .event-indicator {
+        background-color: #ffc107;
+    }
+    
+    .day-number {
+        font-size: 0.8rem;
+    }
+    
+    .other-month {
+        color: #6c757d;
+    }
+    
+    .current-day {
+        font-weight: 600;
+    }
+</style>
+
+@code {
+    [Parameter] public string? ViewAllUrl { get; set; }
+    [Parameter] public DateTime? DisplayDate { get; set; }
+
+    private DateTime CurrentDate = DateTime.Today;
+    private List<CalendarEvent> monthEvents = new();
+    private List<CalendarEvent> todayEvents = new();
+    private HashSet<DateTime> eventDates = new();
+    private DateTime firstDayOfMonth;
+    private DateTime startDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CurrentDate = DisplayDate ?? DateTime.Today;
+        firstDayOfMonth = new DateTime(CurrentDate.Year, CurrentDate.Month, 1);
+        startDate = firstDayOfMonth.AddDays(-(int)firstDayOfMonth.DayOfWeek);
+        
+        await LoadMonthEvents();
+    }
+
+    private async Task LoadMonthEvents()
+    {
+        try
+        {
+            var monthStart = new DateTime(CurrentDate.Year, CurrentDate.Month, 1);
+            var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+            
+            monthEvents = await CalendarService.GetEventsAsync(monthStart, monthEnd);
+            todayEvents = monthEvents.Where(e => e.StartDate.Date == DateTime.Today).OrderBy(e => e.StartDate).ToList();
+            
+            eventDates = monthEvents.Select(e => e.StartDate.Date).ToHashSet();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading month events: {ex.Message}");
+            monthEvents = new List<CalendarEvent>();
+            todayEvents = new List<CalendarEvent>();
+            eventDates = new HashSet<DateTime>();
+        }
+    }
+
+    private DateTime GetCellDate(int week, int day)
+    {
+        return startDate.AddDays(week * 7 + day);
+    }
+
+    private string GetCellClass(DateTime cellDate, bool hasEvents, bool isToday, bool isCurrentMonth)
+    {
+        var classes = new List<string>();
+        
+        if (isToday) classes.Add("today");
+        if (hasEvents && isCurrentMonth) classes.Add("has-events");
+        
+        return string.Join(" ", classes);
+    }
+
+    private string GetDayClass(bool isToday, bool isCurrentMonth)
+    {
+        var classes = new List<string> { "day-number" };
+        
+        if (isToday) classes.Add("current-day");
+        if (!isCurrentMonth) classes.Add("other-month");
+        
+        return string.Join(" ", classes);
+    }
+
+    private string GetCellTitle(DateTime cellDate, bool hasEvents)
+    {
+        var title = cellDate.ToString("MMMM dd, yyyy");
+        if (hasEvents)
+        {
+            var dayEvents = monthEvents.Where(e => e.StartDate.Date == cellDate.Date).Count();
+            title += $" - {dayEvents} event{(dayEvents > 1 ? "s" : "")}";
+        }
+        return title;
+    }
+
+    private string GetEventTypeColor(EventType type)
+    {
+        return type switch
+        {
+            EventType.Assignment => "#fd7e14",
+            EventType.Exam => "#dc3545",
+            EventType.Class => "#0d6efd",
+            EventType.Event => "#6f42c1",
+            EventType.Holiday => "#198754",
+            EventType.Notice => "#20c997",
+            EventType.Meeting => "#6610f2",
+            EventType.Deadline => "#d63384",
+            _ => "#6c757d"
+        };
+    }
+}

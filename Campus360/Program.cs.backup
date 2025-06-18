@@ -1,0 +1,56 @@
+using Microsoft.AspNet// Register our custom services with database integration
+builder.Services.AddScoped<AuthenticationService>();
+builder.Services.AddScoped<UserContextService>();
+builder.Services.AddScoped<AdminServiceNew>();
+builder.Services.AddScoped<TeacherServiceNew>();
+builder.Services.AddScoped<StudentService>();
+builder.Services.AddScoped<AutomationEngineService>();mponents.Web;
+using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Campus360;
+using Campus360.Services;
+using Campus360.Configuration;
+
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+builder.RootComponents.Add<Campus360.App>("#app");
+builder.RootComponents.Add<HeadOutlet>("head::after");
+
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+
+// Register database configuration
+builder.Services.AddSingleton<SupabaseConfig>(provider =>
+{
+    var configuration = provider.GetRequiredService<IConfiguration>();
+    return SupabaseConfig.FromConfiguration(configuration);
+});
+
+// Register database service
+builder.Services.AddScoped<DatabaseService>();
+
+// Register our custom services with database integration
+builder.Services.AddScoped<AuthenticationService>();
+builder.Services.AddScoped<UserContextService>();
+builder.Services.AddScoped<AdminService>();
+builder.Services.AddScoped<TeacherService>();
+builder.Services.AddScoped<StudentService>();
+builder.Services.AddScoped<AutomationEngineService>();
+
+// Register enhanced services with automation integration
+builder.Services.AddScoped<TeacherServiceEnhanced>();
+builder.Services.AddScoped<StudentServiceEnhanced>();
+
+// Register calendar service
+builder.Services.AddScoped<CalendarService>();
+
+// Register timer service for automation processing (Blazor WebAssembly compatible)
+builder.Services.AddScoped<AutomationTimerService>();
+
+// Register file management service
+builder.Services.AddScoped<FileManagementService>();
+
+var app = builder.Build();
+
+// Initialize database connection
+var dbService = app.Services.GetRequiredService<DatabaseService>();
+await dbService.InitializeAsync();
+
+await app.RunAsync();

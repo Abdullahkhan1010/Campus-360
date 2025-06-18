@@ -1,0 +1,796 @@
+@page "/admin/calendar"
+@layout ModernAdminLayout_Fixed
+@using Campus360.Models
+@using Campus360.Services
+@using Campus360.Components.Calendar
+@inject CalendarService CalendarService
+@inject UserContextService UserContext
+@inject IJSRuntime JSRuntime
+
+<PageTitle>System Calendar Management - Campus360</PageTitle>
+
+<div class="container-fluid px-4 py-3">
+    <!-- Calendar Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="h4 mb-0 text-primary">
+                        <i class="fas fa-calendar-alt me-2"></i>System Calendar Management
+                    </h2>
+                    <p class="text-muted mb-0">Manage institutional calendar, holidays, and system-wide academic events</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success btn-sm" @onclick="ShowCreateEventModal">
+                        <i class="fas fa-plus me-1"></i>Create Event
+                    </button>
+                    <button class="btn btn-info btn-sm" @onclick="() => ShowBulkImportModal = true">
+                        <i class="fas fa-upload me-1"></i>Bulk Import
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" @onclick="RefreshCalendar">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                    <button class="btn btn-primary btn-sm" @onclick="() => SwitchView(CalendarViewType.Timeline)">
+                        <i class="fas fa-list me-1"></i>Timeline View
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Statistics Dashboard -->
+    <div class="row mb-4">
+        <div class="col-lg-2 col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-gradient-primary text-white">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="fas fa-calendar-day fa-2x"></i>
+                    </div>
+                    <h5 class="mb-1">@CalendarStats?.TotalEvents ?? 0</h5>
+                    <small>Total Events</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-gradient-warning text-white">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="fas fa-tasks fa-2x"></i>
+                    </div>
+                    <h5 class="mb-1">@CalendarStats?.UpcomingAssignments ?? 0</h5>
+                    <small>Active Assignments</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-gradient-danger text-white">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="fas fa-graduation-cap fa-2x"></i>
+                    </div>
+                    <h5 class="mb-1">@CalendarStats?.UpcomingExams ?? 0</h5>
+                    <small>Scheduled Exams</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-gradient-info text-white">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="fas fa-flag fa-2x"></i>
+                    </div>
+                    <h5 class="mb-1">@GetHolidaysCount()</h5>
+                    <small>Holidays</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-gradient-success text-white">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="fas fa-bullhorn fa-2x"></i>
+                    </div>
+                    <h5 class="mb-1">@GetSystemNoticesCount()</h5>
+                    <small>System Notices</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-gradient-dark text-white">
+                <div class="card-body text-center">
+                    <div class="mb-2">
+                        <i class="fas fa-calendar-week fa-2x"></i>
+                    </div>
+                    <h5 class="mb-1">@CalendarStats?.ThisWeekEvents ?? 0</h5>
+                    <small>This Week</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Event Type Distribution Chart -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            @if (CurrentViewType == CalendarViewType.Timeline)
+            {
+                <!-- Timeline View -->
+                <div class="card border-0 shadow">
+                    <div class="card-header bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-history me-2"></i>System-wide Academic Timeline
+                            </h5>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-primary btn-sm" @onclick="() => SwitchView(CalendarViewType.Month)">
+                                    <i class="fas fa-calendar me-1"></i>Calendar View
+                                </button>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary @(TimelineFilter == "all" ? "active" : "")" 
+                                            @onclick='() => FilterTimeline("all")'>All</button>
+                                    <button class="btn btn-outline-secondary @(TimelineFilter == "academic" ? "active" : "")" 
+                                            @onclick='() => FilterTimeline("academic")'>Academic</button>
+                                    <button class="btn btn-outline-secondary @(TimelineFilter == "holidays" ? "active" : "")" 
+                                            @onclick='() => FilterTimeline("holidays")'>Holidays</button>
+                                    <button class="btn btn-outline-secondary @(TimelineFilter == "notices" ? "active" : "")" 
+                                            @onclick='() => FilterTimeline("notices")'>Notices</button>
+                                    <button class="btn btn-outline-secondary @(TimelineFilter == "system" ? "active" : "")" 
+                                            @onclick='() => FilterTimeline("system")'>System</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body" style="max-height: 70vh; overflow-y: auto;">
+                        @if (FilteredTimelineGroups?.Any() == true)
+                        {
+                            @foreach (var group in FilteredTimelineGroups)
+                            {
+                                <div class="timeline-group mb-4">
+                                    <div class="timeline-header d-flex align-items-center justify-content-between mb-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="badge @(group.IsToday ? "bg-primary" : group.IsPast ? "bg-secondary" : "bg-success") me-2">
+                                                @group.GroupTitle
+                                            </div>
+                                            <small class="text-muted">@group.EventCount event(s)</small>
+                                        </div>
+                                        @if (group.IsUpcoming)
+                                        {
+                                            <span class="badge bg-info">
+                                                <i class="fas fa-clock me-1"></i>Upcoming
+                                            </span>
+                                        }
+                                    </div>
+                                    
+                                    @foreach (var timelineEvent in group.Events)
+                                    {
+                                        <div class="timeline-item d-flex mb-3 @(timelineEvent.IsPast ? "opacity-75" : "")">
+                                            <div class="timeline-marker me-3">
+                                                <div class="rounded-circle d-flex align-items-center justify-content-center position-relative" 
+                                                     style="width: 50px; height: 50px; background-color: @timelineEvent.Color">
+                                                    <i class="@timelineEvent.IconClass text-white"></i>
+                                                    @if (timelineEvent.Priority == EventPriority.Critical)
+                                                    {
+                                                        <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle">
+                                                            <span class="visually-hidden">Critical</span>
+                                                        </span>
+                                                    }
+                                                </div>
+                                            </div>
+                                            <div class="timeline-content flex-grow-1">
+                                                <div class="card border-start-0" style="border-left: 4px solid @timelineEvent.Color !important;">
+                                                    <div class="card-body py-3">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <div class="flex-grow-1">
+                                                                <div class="d-flex align-items-center mb-2">
+                                                                    <h6 class="mb-0 @(timelineEvent.IsCompleted ? "text-decoration-line-through" : "")">
+                                                                        @timelineEvent.Title
+                                                                    </h6>
+                                                                    <div class="dropdown ms-auto">
+                                                                        <button class="btn btn-link btn-sm text-muted" data-bs-toggle="dropdown">
+                                                                            <i class="fas fa-ellipsis-v"></i>
+                                                                        </button>
+                                                                        <ul class="dropdown-menu dropdown-menu-end">
+                                                                            <li><a class="dropdown-item" href="#" @onclick="() => EditEvent(timelineEvent.Id)">
+                                                                                <i class="fas fa-edit me-2"></i>Edit Event
+                                                                            </a></li>
+                                                                            <li><a class="dropdown-item" href="#" @onclick="() => DuplicateEvent(timelineEvent.Id)">
+                                                                                <i class="fas fa-copy me-2"></i>Duplicate
+                                                                            </a></li>
+                                                                            <li><hr class="dropdown-divider"></li>
+                                                                            <li><a class="dropdown-item text-danger" href="#" @onclick="() => DeleteEvent(timelineEvent.Id)">
+                                                                                <i class="fas fa-trash me-2"></i>Delete
+                                                                            </a></li>
+                                                                        </ul>
+                                                                    </div>
+                                                                </div>
+                                                                <p class="text-muted small mb-2">@timelineEvent.Description</p>
+                                                                <div class="d-flex flex-wrap gap-1 mb-2">
+                                                                    @if (!string.IsNullOrEmpty(timelineEvent.CourseInfo))
+                                                                    {
+                                                                        <span class="badge bg-light text-dark">
+                                                                            <i class="fas fa-book me-1"></i>@timelineEvent.CourseInfo
+                                                                        </span>
+                                                                    }
+                                                                    @if (!string.IsNullOrEmpty(timelineEvent.Venue))
+                                                                    {
+                                                                        <span class="badge bg-light text-dark">
+                                                                            <i class="fas fa-map-marker-alt me-1"></i>@timelineEvent.Venue
+                                                                        </span>
+                                                                    }
+                                                                    <span class="badge @GetEventTypeBadgeClass(timelineEvent.EventType)">
+                                                                        @timelineEvent.EventType.ToString()
+                                                                    </span>
+                                                                    @if (IsSystemEvent(timelineEvent))
+                                                                    {
+                                                                        <span class="badge bg-info">
+                                                                            <i class="fas fa-cog me-1"></i>System
+                                                                        </span>
+                                                                    }
+                                                                </div>
+                                                                @if (GetEventMetrics(timelineEvent) != null)
+                                                                {
+                                                                    <div class="small text-muted">
+                                                                        <i class="fas fa-users me-1"></i>@GetEventMetrics(timelineEvent)
+                                                                    </div>
+                                                                }
+                                                            </div>
+                                                            <div class="text-end ms-3">
+                                                                <small class="text-muted d-block">@timelineEvent.TimeAgo</small>
+                                                                @if (timelineEvent.Priority == EventPriority.High || timelineEvent.Priority == EventPriority.Critical)
+                                                                {
+                                                                    <span class="badge bg-danger mt-1">@timelineEvent.Priority.ToString()</span>
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-center py-5">
+                                <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No events found</h5>
+                                <p class="text-muted">System-wide events will appear here</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <!-- Calendar View -->
+                <div class="card border-0 shadow">
+                    <div class="card-header bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-calendar me-2"></i>Institutional Calendar View
+                            </h5>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-success btn-sm" @onclick="ShowCreateEventModal">
+                                    <i class="fas fa-plus me-1"></i>Add Event
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        @if (CalendarViewModel != null)
+                        {
+                            <CalendarView UserId="@UserContext.CurrentUser?.Id"
+                                          UserRole="@UserContext.CurrentUser?.Role"
+                                          ShowCreateButton="true" />
+                        }
+                        else
+                        {
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading calendar...</span>
+                                </div>
+                                <p class="text-muted mt-2">Loading system calendar...</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+        
+        <!-- Sidebar with Event Management -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-pie me-2"></i>Event Distribution
+                    </h6>
+                </div>
+                <div class="card-body">
+                    @if (CalendarStats?.EventsByType?.Any() == true)
+                    {
+                        @foreach (var eventType in CalendarStats.EventsByType)
+                        {
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="d-flex align-items-center">
+                                    <div class="me-2" style="width: 12px; height: 12px; background-color: @GetColorForEventType(eventType.Key); border-radius: 2px;"></div>
+                                    <small>@eventType.Key.ToString()</small>
+                                </div>
+                                <span class="badge bg-light text-dark">@eventType.Value</span>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="text-center py-3">
+                            <small class="text-muted">No event data available</small>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-bolt me-2"></i>Quick Actions
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary btn-sm" @onclick="() => CreateQuickEvent(AcademicEventType.Holiday)">
+                            <i class="fas fa-flag me-2"></i>Add Holiday
+                        </button>
+                        <button class="btn btn-outline-success btn-sm" @onclick="() => CreateQuickEvent(AcademicEventType.Notice)">
+                            <i class="fas fa-bullhorn me-2"></i>System Notice
+                        </button>
+                        <button class="btn btn-outline-info btn-sm" @onclick="() => CreateQuickEvent(AcademicEventType.Semester)">
+                            <i class="fas fa-calendar-alt me-2"></i>Semester Event
+                        </button>
+                        <button class="btn btn-outline-warning btn-sm" @onclick="() => CreateQuickEvent(AcademicEventType.Exam)">
+                            <i class="fas fa-graduation-cap me-2"></i>Schedule Exam Period
+                        </button>
+                        <hr class="my-3">
+                        <a href="/admin/automation" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-cogs me-2"></i>Automation Settings
+                        </a>
+                        <a href="/admin/users" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-users me-2"></i>User Management
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Event Modal -->
+@if (ShowCreateModal)
+{
+    <div class="modal fade show d-block" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus me-2"></i>Create System-wide Academic Event
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="HideCreateEventModal"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="NewEvent" OnValidSubmit="CreateEvent">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger" />
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Event Title*</label>
+                                            <InputText @bind-Value="NewEvent.Title" class="form-control" placeholder="Enter event title" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Event Type*</label>
+                                            <InputSelect @bind-Value="NewEvent.EventType" class="form-select">
+                                                <option value="">Select Event Type</option>
+                                                <option value="@AcademicEventType.Holiday">Holiday</option>
+                                                <option value="@AcademicEventType.Notice">System Notice</option>
+                                                <option value="@AcademicEventType.Semester">Semester Event</option>
+                                                <option value="@AcademicEventType.Exam">Exam Period</option>
+                                                <option value="@AcademicEventType.Registration">Registration Period</option>
+                                                <option value="@AcademicEventType.AdmissionDeadline">Admission Deadline</option>
+                                                <option value="@AcademicEventType.FeePayment">Fee Payment</option>
+                                                <option value="@AcademicEventType.Workshop">Workshop</option>
+                                                <option value="@AcademicEventType.Conference">Conference</option>
+                                                <option value="@AcademicEventType.Meeting">Meeting</option>
+                                            </InputSelect>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Description*</label>
+                                    <InputTextArea @bind-Value="NewEvent.Description" class="form-control" rows="3" placeholder="Enter detailed description" />
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Start Date*</label>
+                                            <InputDate @bind-Value="NewEvent.StartDate" class="form-control" />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">End Date (Optional)</label>
+                                            <InputDate @bind-Value="NewEvent.EndDate" class="form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Priority Level</label>
+                                            <InputSelect @bind-Value="NewEvent.Priority" class="form-select">
+                                                <option value="@EventPriority.Low">Low</option>
+                                                <option value="@EventPriority.Normal">Normal</option>
+                                                <option value="@EventPriority.High">High</option>
+                                                <option value="@EventPriority.Critical">Critical</option>
+                                                <option value="@EventPriority.Urgent">Urgent</option>
+                                            </InputSelect>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Target Audience</label>
+                                            <InputSelect @bind-Value="NewEvent.TargetRole" class="form-select">
+                                                <option value="@EventTargetRole.All">All Users</option>
+                                                <option value="@EventTargetRole.Student">Students Only</option>
+                                                <option value="@EventTargetRole.Teacher">Teachers Only</option>
+                                                <option value="@EventTargetRole.Admin">Admins Only</option>
+                                                <option value="@EventTargetRole.Department">Department Specific</option>
+                                            </InputSelect>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Event Color</label>
+                                    <InputText @bind-Value="NewEvent.Color" type="color" class="form-control form-control-color" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Venue/Location</label>
+                                    <InputText @bind-Value="NewEvent.Venue" class="form-control" placeholder="Enter venue or link" />
+                                </div>
+
+                                <div class="form-check mb-3">
+                                    <InputCheckbox @bind-Value="NewEvent.IsAllDay" class="form-check-input" id="allDayCheck" />
+                                    <label class="form-check-label" for="allDayCheck">
+                                        All Day Event
+                                    </label>
+                                </div>
+
+                                <div class="form-check mb-3">
+                                    <InputCheckbox @bind-Value="NewEvent.HasReminder" class="form-check-input" id="reminderCheck" />
+                                    <label class="form-check-label" for="reminderCheck">
+                                        Send Notifications
+                                    </label>
+                                </div>
+
+                                <div class="form-check mb-3">
+                                    <InputCheckbox @bind-Value="NewEvent.IsRecurring" class="form-check-input" id="recurringCheck" />
+                                    <label class="form-check-label" for="recurringCheck">
+                                        Recurring Event
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-secondary" @onclick="HideCreateEventModal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>Create Event
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    private CalendarViewModel? CalendarViewModel;
+    private List<TimelineGroup>? TimelineGroups;
+    private List<TimelineGroup>? FilteredTimelineGroups;
+    private CalendarStats? CalendarStats;
+    private CalendarViewType CurrentViewType = CalendarViewType.Month;
+    private bool IsLoading = true;
+    private bool ShowCreateModal = false;
+    private bool ShowBulkImportModal = false;
+    private string TimelineFilter = "all";
+    private CreateEventModel NewEvent = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCalendarData();
+    }
+
+    private async Task LoadCalendarData()
+    {
+        IsLoading = true;
+        StateHasChanged();        try
+        {
+            // Use proper UUID for system user when current user is not available
+            var userId = UserContext.CurrentUser?.Id ?? "00000000-0000-0000-0000-000000000001";
+            var userRole = UserContext.CurrentUser?.Role ?? "Admin";
+
+            // Load calendar view and timeline for system-wide view
+            var calendarTask = CalendarService.GetCalendarViewAsync(userId, userRole, CurrentViewType);
+            var timelineTask = CalendarService.GetTimelineAsync(userId, userRole, 60, 180); // Extended range for admin
+            var statsTask = CalendarService.GetCalendarStatsAsync(userId, userRole);
+
+            await Task.WhenAll(calendarTask, timelineTask, statsTask);
+
+            CalendarViewModel = await calendarTask;
+            TimelineGroups = await timelineTask;
+            CalendarStats = await statsTask;
+            
+            FilterTimeline(TimelineFilter); // Apply current filter
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading calendar data: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SwitchView(CalendarViewType viewType)
+    {
+        CurrentViewType = viewType;
+        await LoadCalendarData();
+    }
+
+    private async Task RefreshCalendar()
+    {
+        await LoadCalendarData();
+        await JSRuntime.InvokeVoidAsync("showToast", "success", "System calendar refreshed successfully!");
+    }
+
+    private void FilterTimeline(string filter)
+    {
+        TimelineFilter = filter;
+        
+        if (TimelineGroups != null)
+        {
+            FilteredTimelineGroups = TimelineGroups.Select(group => new TimelineGroup
+            {
+                GroupTitle = group.GroupTitle,
+                GroupDate = group.GroupDate,
+                IsToday = group.IsToday,
+                IsPast = group.IsPast,
+                IsUpcoming = group.IsUpcoming,
+                Events = filter switch
+                {
+                    "academic" => group.Events.Where(e => e.EventType == AcademicEventType.Assignment || 
+                                                         e.EventType == AcademicEventType.Exam || 
+                                                         e.EventType == AcademicEventType.ClassScheduled).ToList(),
+                    "holidays" => group.Events.Where(e => e.EventType == AcademicEventType.Holiday).ToList(),
+                    "notices" => group.Events.Where(e => e.EventType == AcademicEventType.Notice).ToList(),
+                    "system" => group.Events.Where(e => e.EventType == AcademicEventType.Semester || 
+                                                       e.EventType == AcademicEventType.Registration ||
+                                                       e.EventType == AcademicEventType.AdmissionDeadline).ToList(),
+                    _ => group.Events
+                },
+                EventCount = 0 // Will be set below
+            }).Where(group => group.Events.Any()).ToList();
+
+            // Update event counts
+            foreach (var group in FilteredTimelineGroups)
+            {
+                group.EventCount = group.Events.Count;
+            }
+        }
+        
+        StateHasChanged();
+    }
+
+    private void ShowCreateEventModal()
+    {
+        NewEvent = new CreateEventModel
+        {
+            StartDate = DateTime.Now.AddDays(1),
+            Priority = EventPriority.Normal,
+            EventType = AcademicEventType.Notice,
+            TargetRole = EventTargetRole.All,
+            Color = "#007bff"
+        };
+        ShowCreateModal = true;
+    }
+
+    private void HideCreateEventModal()
+    {
+        ShowCreateModal = false;
+        NewEvent = new();
+    }    private void OpenBulkImportModal()
+    {
+        ShowBulkImportModal = true;
+    }    private async Task CreateEvent()    {
+        try
+        {
+            // Use proper UUID for system user when current user is not available
+            var userId = UserContext.CurrentUser?.Id ?? "00000000-0000-0000-0000-000000000001";
+            var result = await CalendarService.CreateEventAsync(NewEvent, userId, "Admin");
+            
+            if (result.Success)
+            {
+                await JSRuntime.InvokeVoidAsync("showToast", "success", "System event created successfully!");
+                HideCreateEventModal();
+                await LoadCalendarData();
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("showToast", "error", result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("showToast", "error", $"Error creating event: {ex.Message}");
+        }
+    }
+
+    private void CreateQuickEvent(AcademicEventType eventType)
+    {
+        NewEvent = new CreateEventModel
+        {
+            EventType = eventType,
+            StartDate = DateTime.Now.AddDays(1),
+            Priority = eventType == AcademicEventType.Holiday ? EventPriority.Normal : EventPriority.High,
+            Title = $"New {eventType}",
+            Description = $"System {eventType} created from admin panel",
+            TargetRole = EventTargetRole.All,
+            Color = GetColorForEventType(eventType)
+        };
+        ShowCreateModal = true;
+    }
+
+    private async Task EditEvent(string eventId)
+    {
+        await JSRuntime.InvokeVoidAsync("showToast", "info", "Edit functionality will be available soon!");
+    }
+
+    private async Task DuplicateEvent(string eventId)
+    {
+        await JSRuntime.InvokeVoidAsync("showToast", "info", "Duplicate functionality will be available soon!");
+    }
+
+    private async Task DeleteEvent(string eventId)
+    {
+        await JSRuntime.InvokeVoidAsync("showToast", "info", "Delete functionality will be available soon!");
+    }
+
+    private string GetEventTypeBadgeClass(AcademicEventType eventType)
+    {
+        return eventType switch
+        {
+            AcademicEventType.Assignment => "bg-primary",
+            AcademicEventType.Exam => "bg-danger",
+            AcademicEventType.Holiday => "bg-warning",
+            AcademicEventType.Notice => "bg-success",
+            AcademicEventType.Semester => "bg-info",
+            AcademicEventType.Registration => "bg-secondary",
+            _ => "bg-dark"
+        };
+    }
+
+    private string GetColorForEventType(AcademicEventType eventType)
+    {
+        return eventType switch
+        {
+            AcademicEventType.Assignment => "#007bff",
+            AcademicEventType.Exam => "#dc3545",
+            AcademicEventType.Holiday => "#ffc107",
+            AcademicEventType.Notice => "#28a745",
+            AcademicEventType.Semester => "#17a2b8",
+            AcademicEventType.Registration => "#6c757d",
+            _ => "#6f42c1"
+        };
+    }
+
+    private bool IsSystemEvent(TimelineEvent timelineEvent)
+    {
+        return timelineEvent.EventType == AcademicEventType.Holiday || 
+               timelineEvent.EventType == AcademicEventType.Semester ||
+               timelineEvent.EventType == AcademicEventType.Registration;
+    }
+
+    private string? GetEventMetrics(TimelineEvent timelineEvent)
+    {
+        // Simulate event metrics (students affected, notifications sent, etc.)
+        return timelineEvent.EventType switch
+        {
+            AcademicEventType.Notice => "Sent to 1,250 users",
+            AcademicEventType.Holiday => "Institution-wide",
+            AcademicEventType.Assignment => "85 students affected",
+            AcademicEventType.Exam => "150 students scheduled",
+            _ => null
+        };
+    }
+
+    private int GetHolidaysCount()
+    {
+        return CalendarStats?.EventsByType?.GetValueOrDefault(AcademicEventType.Holiday, 0) ?? 0;
+    }
+
+    private int GetSystemNoticesCount()
+    {
+        return CalendarStats?.EventsByType?.GetValueOrDefault(AcademicEventType.Notice, 0) ?? 0;
+    }
+}
+
+<style>
+    .timeline-marker {
+        flex-shrink: 0;
+    }
+    
+    .timeline-item:not(:last-child)::before {
+        content: '';
+        position: absolute;
+        left: 25px;
+        top: 50px;
+        bottom: -20px;
+        width: 2px;
+        background: #e9ecef;
+        z-index: 1;
+    }
+    
+    .timeline-group {
+        position: relative;
+    }
+
+    .card {
+        transition: all 0.3s ease;
+    }
+    
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.1) !important;
+    }
+
+    .modal.show {
+        background-color: rgba(0,0,0,0.5);
+    }
+
+    .bg-gradient-primary {
+        background: linear-gradient(45deg, #007bff, #0056b3);
+    }
+    
+    .bg-gradient-warning {
+        background: linear-gradient(45deg, #ffc107, #e0a800);
+    }
+    
+    .bg-gradient-danger {
+        background: linear-gradient(45deg, #dc3545, #c82333);
+    }
+    
+    .bg-gradient-info {
+        background: linear-gradient(45deg, #17a2b8, #138496);
+    }
+    
+    .bg-gradient-success {
+        background: linear-gradient(45deg, #28a745, #1e7e34);
+    }
+    
+    .bg-gradient-dark {
+        background: linear-gradient(45deg, #343a40, #23272b);
+    }
+</style>

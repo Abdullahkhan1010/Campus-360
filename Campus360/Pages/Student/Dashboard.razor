@@ -1,0 +1,496 @@
+@page "/student/dashboard"
+@layout StudentLayout
+@using Campus360.Models
+@using Campus360.Services
+@using Campus360.Components.Calendar
+@inject StudentService StudentService
+@inject StudentServiceEnhanced StudentServiceEnhanced
+@inject UserContextService UserContext
+
+<PageTitle>Student Dashboard - Campus360</PageTitle>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center align-items-center" style="height: 300px;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else if (dashboardStats != null)
+{
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">Welcome back, @(currentUser?.FullName ?? "Student")!</h2>
+            <p class="lead">Here's your academic overview and recent updates.</p>
+        </div>
+    </div>
+
+    <!-- Dashboard Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>@dashboardStats.TotalCourses</h4>
+                            <p class="mb-0">Enrolled Courses</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-book" style="font-size: 2rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-@(dashboardStats.OverdueAssignments > 0 ? "danger" : "success") text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>@dashboardStats.ActiveAssignments</h4>
+                            <p class="mb-0">Active Assignments</p>
+                            @if (dashboardStats.OverdueAssignments > 0)
+                            {
+                                <small>(@dashboardStats.OverdueAssignments overdue)</small>
+                            }
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-clipboard-check" style="font-size: 2rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-@(GetAttendanceCardColor(dashboardStats.OverallAttendance)) text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>@dashboardStats.OverallAttendance.ToString("F1")%</h4>
+                            <p class="mb-0">Attendance Rate</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-person-check" style="font-size: 2rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-@(GetGPACardColor(dashboardStats.CurrentGPA)) text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>@dashboardStats.CurrentGPA.ToString("F2")</h4>
+                            <p class="mb-0">Current GPA</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-award" style="font-size: 2rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Secondary Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <h5 class="text-info">@dashboardStats.TotalCredits</h5>
+                    <small class="text-muted">Total Credits</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h5 class="text-warning">@dashboardStats.UpcomingExams</h5>
+                    <small class="text-muted">Upcoming Exams</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h5 class="text-success">@dashboardStats.CompletedAssignments</h5>
+                    <small class="text-muted">Completed</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <h5 class="text-primary">@dashboardStats.UnreadNotices</h5>
+                    <small class="text-muted">New Notices</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Recent Notices -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Announcements</h5>
+                    <a href="/student/notices" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body">
+                    @if (recentNotices?.Any() == true)
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var notice in recentNotices.Take(5))
+                            {
+                                <div class="list-group-item d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <strong>@notice.Title</strong>
+                                        @if (notice.IsUrgent)
+                                        {
+                                            <span class="badge bg-danger ms-2">Urgent</span>
+                                        }
+                                        <br><small class="text-muted">@notice.Content</small>
+                                        <br><small class="text-muted">From: @notice.SenderName</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-muted">@GetTimeAgo(notice.PublishedDate)</small>
+                                        @if (!notice.IsRead)
+                                        {
+                                            <br><span class="badge bg-primary">New</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No recent announcements.</p>
+                    }
+                </div>
+            </div>
+
+            <!-- Recent Assignments -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Upcoming Assignments</h5>
+                    <a href="/student/assignments" class="btn btn-sm btn-outline-success">View All</a>
+                </div>
+                <div class="card-body">
+                    @if (upcomingAssignments?.Any() == true)
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var assignment in upcomingAssignments.Take(5))
+                            {
+                                <div class="list-group-item d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <strong>@assignment.Title</strong>
+                                        <span class="badge bg-@(GetPriorityColor(assignment.Priority)) ms-2">@assignment.Priority</span>
+                                        <br><small class="text-muted">@assignment.CourseName</small>
+                                        <br><small class="text-muted">Due: @assignment.DueDate.ToString("MMM dd, yyyy")</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-@(GetDueDateColor(assignment.DueDate))">
+                                            @GetDaysUntilDue(assignment.DueDate)
+                                        </small>
+                                        <br><span class="badge bg-@(GetStatusColor(assignment.SubmissionStatus))">@assignment.SubmissionStatus</span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No upcoming assignments.</p>
+                    }
+                </div>
+            </div>
+        </div>        <div class="col-md-4">
+            <!-- Mini Calendar -->
+            <div class="mb-4">
+                <MiniCalendar ViewAllUrl="/student/calendar" />
+            </div>
+
+            <!-- Upcoming Calendar Events -->
+            <div class="mb-4">
+                <CalendarWidget Title="Upcoming Events" 
+                               ViewAllUrl="/student/calendar" 
+                               MaxEvents="4" 
+                               DaysAhead="7" 
+                               ShowDescription="false" />
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="/student/courses" class="btn btn-outline-primary">
+                            <i class="bi bi-book me-2"></i>My Courses
+                        </a>
+                        <a href="/student/attendance" class="btn btn-outline-info">
+                            <i class="bi bi-calendar-check me-2"></i>Attendance
+                        </a>
+                        <a href="/student/results" class="btn btn-outline-success">
+                            <i class="bi bi-trophy me-2"></i>Results
+                        </a>
+                        <a href="/student/notices" class="btn btn-outline-warning">
+                            <i class="bi bi-bell me-2"></i>Notices
+                        </a>
+                        <a href="/student/calendar" class="btn btn-outline-dark">
+                            <i class="bi bi-calendar3 me-2"></i>Calendar
+                        </a>
+                        <a href="/student/profile" class="btn btn-outline-secondary">
+                            <i class="bi bi-person me-2"></i>Profile
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alerts -->
+            @if (activeAlerts?.Any() == true)
+            {
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Important Alerts</h5>
+                    </div>                    <div class="card-body">
+                        @foreach (var alert in activeAlerts.Take(3))
+                        {
+                            <div class="alert alert-@(GetAlertPriorityColor(alert.Priority)) alert-dismissible fade show" role="alert">
+                                <strong>@alert.Title</strong>
+                                <br>@alert.Message
+                                @if (!string.IsNullOrEmpty(alert.ActionUrl))
+                                {
+                                    <br><small><strong>Action Required:</strong> <a href="@alert.ActionUrl" class="alert-link">View Details</a></small>
+                                }
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }        </div>
+    </div>
+}
+else
+{
+    <div class="alert alert-danger">
+        <h4><i class="fas fa-exclamation-triangle"></i> Error</h4>
+        <p>@(!string.IsNullOrEmpty(errorMessage) ? errorMessage : "Unable to load dashboard data. Please try again later.")</p>
+        <button class="btn btn-outline-danger" @onclick="RetryLoadData" disabled="@isLoading">
+            @if (isLoading)
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span>Loading...</span>
+            }
+            else
+            {
+                <i class="fas fa-sync-alt"></i>
+                <span>Try Again</span>
+            }
+        </button>
+    </div>
+}
+
+@code {
+    private StudentDashboardStats? dashboardStats;
+    private List<StudentNotice>? recentNotices;
+    private List<StudentAssignment>? upcomingAssignments;
+    private List<AutomationAlert>? activeAlerts;
+    private UserProfile? currentUser;private bool isLoading = true;
+    private string errorMessage = string.Empty;
+    private bool hasLoaded = false;    protected override async Task OnInitializedAsync()
+    {
+        // Try to restore user session immediately
+        await UserContext.RestoreUserSessionAsync();
+        await base.OnInitializedAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !hasLoaded)
+        {
+            hasLoaded = true;
+            await LoadDashboardData();
+        }
+        await base.OnAfterRenderAsync(firstRender);
+    }private async Task LoadDashboardData()
+    {
+        isLoading = true;
+        
+        try
+        {
+            // Ensure user session is properly restored
+            currentUser = await UserContext.GetCurrentUserAsync();
+            
+            if (currentUser == null)
+            {
+                // Try to restore session again
+                await UserContext.RestoreUserSessionAsync();
+                currentUser = UserContext.CurrentUser;
+                
+                if (currentUser == null)
+                {
+                    errorMessage = "User session not found. Please refresh the page.";
+                    return;
+                }
+            }
+              // Load dashboard data for the student
+            var studentId = currentUser.Id;
+            
+            // Use enhanced service with automation integration for better performance
+            var dashboardTask = StudentServiceEnhanced.GetDashboardStatsWithAutomationAsync(studentId);
+            var noticesTask = StudentService.GetNoticesAsync(studentId);
+            var assignmentsTask = StudentServiceEnhanced.GetAssignmentsWithRemindersAsync(studentId);
+            var alertsTask = StudentServiceEnhanced.GetActiveAutomationAlertsAsync(studentId);
+
+            // Add timeout to prevent hanging
+            var timeoutTask = Task.Delay(30000); // 30 seconds timeout
+            var completedTask = await Task.WhenAny(
+                Task.WhenAll(dashboardTask, noticesTask, assignmentsTask, alertsTask),
+                timeoutTask
+            );
+
+            if (completedTask == timeoutTask)
+            {
+                errorMessage = "Request timed out. Please try again.";
+                return;
+            }
+
+            dashboardStats = await dashboardTask;
+            recentNotices = await noticesTask;
+            upcomingAssignments = await assignmentsTask;
+            activeAlerts = await alertsTask;        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading dashboard: {ex.Message}";
+            Console.WriteLine(errorMessage);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }    private async Task RetryLoadData()
+    {
+        errorMessage = string.Empty;
+        
+        // Force session restoration
+        await UserContext.RestoreUserSessionAsync();
+        
+        // Reload dashboard data
+        await LoadDashboardData();
+    }
+
+    // Helper methods for styling and formatting
+    private string GetAttendanceCardColor(double attendance)
+    {
+        return attendance switch
+        {
+            >= 90 => "success",
+            >= 80 => "warning",
+            >= 75 => "info",
+            _ => "danger"
+        };
+    }
+
+    private string GetGPACardColor(double gpa)
+    {
+        return gpa switch
+        {
+            >= 3.5 => "success",
+            >= 3.0 => "warning",
+            >= 2.5 => "info",
+            _ => "danger"
+        };
+    }
+
+    private string GetPriorityColor(string priority)
+    {
+        return priority?.ToLower() switch
+        {
+            "urgent" => "danger",
+            "high" => "warning",
+            "medium" => "info",
+            "low" => "secondary",
+            _ => "primary"
+        };
+    }
+
+    private string GetStatusColor(string status)
+    {
+        return status?.ToLower() switch
+        {
+            "submitted" => "success",
+            "graded" => "primary",
+            "overdue" => "danger",
+            "pending" => "warning",
+            _ => "secondary"
+        };
+    }
+
+    private string GetDueDateColor(DateTime dueDate)
+    {
+        var daysUntil = (dueDate - DateTime.Now).Days;
+        return daysUntil switch
+        {
+            <= 1 => "danger",
+            <= 3 => "warning",
+            <= 7 => "info",
+            _ => "success"
+        };
+    }
+
+    private string GetAlertSeverityColor(string severity)
+    {
+        return severity?.ToLower() switch
+        {
+            "critical" => "danger",
+            "high" => "warning",
+            "medium" => "info",
+            "low" => "secondary",
+            _ => "primary"
+        };
+    }
+
+    private string GetTimeAgo(DateTime date)
+    {
+        var timeSpan = DateTime.Now - date;
+        
+        if (timeSpan.Days > 0)
+            return $"{timeSpan.Days} day{(timeSpan.Days == 1 ? "" : "s")} ago";
+        else if (timeSpan.Hours > 0)
+            return $"{timeSpan.Hours} hour{(timeSpan.Hours == 1 ? "" : "s")} ago";
+        else if (timeSpan.Minutes > 0)
+            return $"{timeSpan.Minutes} minute{(timeSpan.Minutes == 1 ? "" : "s")} ago";
+        else
+            return "Just now";
+    }    private string GetDaysUntilDue(DateTime dueDate)
+    {
+        var daysUntil = (dueDate - DateTime.Now).Days;
+        
+        if (daysUntil < 0)
+            return $"{Math.Abs(daysUntil)} day{(Math.Abs(daysUntil) == 1 ? "" : "s")} overdue";
+        else if (daysUntil == 0)
+            return "Due today";
+        else if (daysUntil == 1)
+            return "Due tomorrow";
+        else
+            return $"Due in {daysUntil} days";
+    }
+
+    private string GetAlertPriorityColor(NotificationPriority priority)
+    {
+        return priority switch
+        {
+            NotificationPriority.Critical => "danger",
+            NotificationPriority.High => "warning",
+            NotificationPriority.Normal => "info",
+            NotificationPriority.Low => "secondary",
+            _ => "primary"
+        };
+    }
+}

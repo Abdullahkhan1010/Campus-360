@@ -1,0 +1,826 @@
+using Campus360.Models;
+
+namespace Campus360.Services
+{
+    public class TeacherService
+    {
+        private readonly DatabaseService _databaseService;
+        private readonly AutomationEngineService _automationEngine;        public TeacherService(DatabaseService databaseService, AutomationEngineService automationEngine)
+        {
+            _databaseService = databaseService;
+            _automationEngine = automationEngine;
+        }
+
+        // Dashboard data
+        public async Task<TeacherDashboardStats> GetTeacherDashboardStatsAsync(string teacherId)
+        {
+            try
+            {
+                // Get teacher's courses from database
+                var courses = await _databaseService.GetAllAsync<Course>("courses");
+                var teacherCourses = courses.Where(c => c.TeacherId == teacherId && c.IsActive).ToList();
+
+                // Get assignments for teacher's courses
+                var assignments = await _databaseService.GetAllAsync<Assignment>("assignments");
+                var teacherAssignments = assignments.Where(a => teacherCourses.Any(c => c.Id == a.CourseId)).ToList();
+
+                // Get attendance records
+                var attendanceRecords = await _databaseService.GetAllAsync<AttendanceRecord>("attendance");
+                var teacherAttendance = attendanceRecords.Where(a => teacherCourses.Any(c => c.Id == a.CourseId)).ToList();
+
+                // Calculate statistics
+                var stats = new TeacherDashboardStats
+                {
+                    TotalCourses = teacherCourses.Count,
+                    TotalStudents = teacherCourses.Sum(c => c.EnrolledStudents ?? 0),
+                    PendingAssignments = teacherAssignments.Count(a => a.DueDate > DateTime.UtcNow && !a.IsSubmitted),
+                    TodayClasses = GetTodayClassesCount(teacherCourses),
+                    OverdueAssignments = teacherAssignments.Count(a => a.DueDate < DateTime.UtcNow && !a.IsSubmitted),
+                    AverageAttendance = CalculateAverageAttendance(teacherAttendance),
+                    RecentNotices = await GetRecentNoticesAsync(teacherId),
+                    UpcomingDeadlines = GetUpcomingDeadlines(teacherAssignments)
+                };
+
+                return stats;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting teacher dashboard stats: {ex.Message}");
+                return new TeacherDashboardStats();
+            }
+        }
+        {            new TeacherCourse 
+            { 
+                Id = "1", 
+                CourseId = "1",
+                Name = "Data Structures", 
+                CourseName = "Data Structures",
+                Code = "CS101", 
+                CourseCode = "CS101",
+                DepartmentId = "1", 
+                DepartmentName = "Computer Science",
+                Semester = 3, 
+                CreditHours = 4, 
+                EnrolledStudents = 45,
+                TotalClasses = 30,
+                CompletedClasses = 18,
+                AttendanceRate = 87.5,
+                PendingAssignments = 2,
+                LastClassDate = DateTime.Now.AddDays(-2),
+                NextClassDate = DateTime.Now.AddDays(1),
+                IsActive = true,
+                CreatedAt = DateTime.Now.AddDays(-60)
+            },            new TeacherCourse 
+            { 
+                Id = "2", 
+                CourseId = "2",
+                Name = "Web Development", 
+                CourseName = "Web Development",
+                Code = "IT201", 
+                CourseCode = "IT201",
+                DepartmentId = "2", 
+                DepartmentName = "Information Technology",
+                Semester = 4, 
+                CreditHours = 3, 
+                EnrolledStudents = 38,
+                TotalClasses = 25,
+                CompletedClasses = 15,
+                AttendanceRate = 92.3,
+                PendingAssignments = 1,
+                LastClassDate = DateTime.Now.AddDays(-1),
+                NextClassDate = DateTime.Now.AddDays(2),
+                IsActive = true,
+                CreatedAt = DateTime.Now.AddDays(-45)
+            },            new TeacherCourse 
+            { 
+                Id = "3", 
+                CourseId = "3",
+                Name = "Database Systems", 
+                CourseName = "Database Systems",
+                Code = "CS301", 
+                CourseCode = "CS301",
+                DepartmentId = "1", 
+                DepartmentName = "Computer Science",
+                Semester = 5, 
+                CreditHours = 4, 
+                EnrolledStudents = 32,
+                TotalClasses = 28,
+                CompletedClasses = 20,
+                AttendanceRate = 89.1,
+                PendingAssignments = 3,
+                LastClassDate = DateTime.Now.AddDays(-3),
+                NextClassDate = DateTime.Now.AddDays(1),
+                IsActive = true,
+                CreatedAt = DateTime.Now.AddDays(-50)
+            }
+        };
+
+        private static List<CourseStudent> _courseStudents = new()
+        {
+            // Students for CS101
+            new CourseStudent { Id = "s1", FullName = "Alice Johnson", Email = "alice@example.com", StudentId = "CS2021001", DepartmentName = "Computer Science", Semester = 3, AttendancePercentage = 95.5, TotalClasses = 18, AttendedClasses = 17, OverallGrade = 88.5, GradeStatus = "In Progress", EnrolledDate = DateTime.Now.AddDays(-60) },
+            new CourseStudent { Id = "s2", FullName = "Bob Smith", Email = "bob@example.com", StudentId = "CS2021002", DepartmentName = "Computer Science", Semester = 3, AttendancePercentage = 78.9, TotalClasses = 18, AttendedClasses = 14, OverallGrade = 75.2, GradeStatus = "In Progress", EnrolledDate = DateTime.Now.AddDays(-60) },
+            new CourseStudent { Id = "s3", FullName = "Carol Wilson", Email = "carol@example.com", StudentId = "CS2021003", DepartmentName = "Computer Science", Semester = 3, AttendancePercentage = 88.9, TotalClasses = 18, AttendedClasses = 16, OverallGrade = 92.1, GradeStatus = "In Progress", EnrolledDate = DateTime.Now.AddDays(-58) },
+            
+            // Students for IT201
+            new CourseStudent { Id = "s4", FullName = "David Brown", Email = "david@example.com", StudentId = "IT2021001", DepartmentName = "Information Technology", Semester = 4, AttendancePercentage = 100, TotalClasses = 15, AttendedClasses = 15, OverallGrade = 95.7, GradeStatus = "In Progress", EnrolledDate = DateTime.Now.AddDays(-45) },
+            new CourseStudent { Id = "s5", FullName = "Eva Davis", Email = "eva@example.com", StudentId = "IT2021002", DepartmentName = "Information Technology", Semester = 4, AttendancePercentage = 86.7, TotalClasses = 15, AttendedClasses = 13, OverallGrade = 82.3, GradeStatus = "In Progress", EnrolledDate = DateTime.Now.AddDays(-45) }
+        };
+
+        private static List<AssignmentModel> _assignments = new()
+        {            new AssignmentModel 
+            { 
+                Id = "a1", 
+                AssignmentId = "a1",
+                Title = "Linked List Implementation", 
+                Description = "Implement a doubly linked list with basic operations",
+                CourseId = "1", 
+                CourseName = "Data Structures", 
+                CourseCode = "CS101",
+                DueDate = DateTime.Now.AddDays(5),
+                MaxScore = 100,
+                MaxMarks = 100,
+                AssignmentType = "Assignment",
+                AllowLateSubmission = true,
+                LatePenaltyPercentage = 10,
+                IsPublished = true,
+                TotalStudents = 45,
+                SubmittedCount = 23,
+                PendingCount = 22,
+                GradedCount = 15,
+                AverageScore = 78.5,
+                CreatedAt = DateTime.Now.AddDays(-7)
+            },            new AssignmentModel 
+            { 
+                Id = "a2", 
+                AssignmentId = "a2",
+                Title = "HTML/CSS Portfolio", 
+                Description = "Create a personal portfolio website using HTML and CSS",
+                CourseId = "2", 
+                CourseName = "Web Development", 
+                CourseCode = "IT201",
+                DueDate = DateTime.Now.AddDays(10),
+                MaxScore = 100,
+                MaxMarks = 100,
+                AssignmentType = "Project",
+                AllowLateSubmission = false,
+                IsPublished = true,
+                TotalStudents = 38,
+                SubmittedCount = 35,
+                PendingCount = 3,
+                GradedCount = 30,
+                AverageScore = 85.2,
+                CreatedAt = DateTime.Now.AddDays(-14)
+            }
+        };
+
+        private static List<AttendanceSession> _attendanceSessions = new()
+        {
+            new AttendanceSession
+            {
+                Id = "att1",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                ClassDate = DateTime.Now.AddDays(-2),
+                ClassType = "Lecture",
+                Topic = "Binary Trees",
+                IsCompleted = true,
+                TotalStudents = 45,
+                PresentStudents = 42,
+                AbsentStudents = 3,
+                CreatedAt = DateTime.Now.AddDays(-2)
+            },
+            new AttendanceSession
+            {
+                Id = "att2",
+                CourseId = "2",
+                CourseName = "Web Development",
+                CourseCode = "IT201",
+                ClassDate = DateTime.Now.AddDays(-1),
+                ClassType = "Lab",
+                Topic = "CSS Flexbox",
+                IsCompleted = true,
+                TotalStudents = 38,
+                PresentStudents = 35,
+                AbsentStudents = 3,
+                CreatedAt = DateTime.Now.AddDays(-1)
+            }
+        };
+
+        private static List<NoticeModel> _notices = new()
+        {            new NoticeModel
+            {
+                Id = "n1",
+                NoticeId = "n1",
+                Title = "Midterm Exam Schedule",
+                Content = "The midterm examination for Data Structures will be held on March 15, 2024, from 10:00 AM to 12:00 PM in Room 201.",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                Priority = "High",
+                Type = "Exam",
+                IsPublished = true,
+                PublishedAt = DateTime.Now.AddDays(-3),
+                ExpiryDate = DateTime.Now.AddDays(15),
+                CreatedBy = "teacher1",
+                CreatedByName = "John Doe",
+                TotalRecipients = 45,
+                DeliveredCount = 45,
+                ReadCount = 38,
+                CreatedAt = DateTime.Now.AddDays(-3)
+            },            new NoticeModel
+            {
+                Id = "n2",
+                NoticeId = "n2",
+                Title = "Class Cancelled - Tomorrow",
+                Content = "Due to a faculty meeting, tomorrow's Web Development class is cancelled. We will make up for it next week.",
+                CourseId = "2",
+                CourseName = "Web Development",
+                CourseCode = "IT201",
+                Priority = "Urgent",
+                Type = "General",
+                IsPublished = true,
+                PublishedAt = DateTime.Now.AddHours(-2),
+                CreatedBy = "teacher1",
+                CreatedByName = "John Doe",
+                TotalRecipients = 38,
+                DeliveredCount = 38,
+                ReadCount = 25,
+                CreatedAt = DateTime.Now.AddHours(-2)            }
+        };
+
+        private static List<ResultModel> _resultModels = new()
+        {
+            new ResultModel
+            {
+                Id = "r1",
+                StudentId = "s1",
+                StudentName = "Alice Johnson",
+                StudentEmail = "alice@example.com",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                MidtermScore = 88.5,
+                FinalScore = null,
+                AssignmentAverage = 92.3,
+                QuizAverage = 85.7,
+                TotalScore = 88.8,
+                LetterGrade = "B+",
+                GPA = 3.3,
+                Status = "In Progress",
+                LastUpdated = DateTime.Now.AddDays(-2)
+            },
+            new ResultModel
+            {
+                Id = "r2",
+                StudentId = "s2",
+                StudentName = "Bob Smith",
+                StudentEmail = "bob@example.com",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                MidtermScore = 75.2,
+                FinalScore = null,
+                AssignmentAverage = 78.1,
+                QuizAverage = 73.4,
+                TotalScore = 75.6,
+                LetterGrade = "C",
+                GPA = 2.0,
+                Status = "In Progress",
+                LastUpdated = DateTime.Now.AddDays(-1)
+            }
+        };
+
+        private static List<AutomationLog> _automationLogs = new()
+        {            new AutomationLog
+            {
+                Id = "log1",
+                LogId = "log1",
+                Type = "attendance_notification",
+                Title = "Low Attendance Alert",
+                Message = "Your attendance in CS101 has dropped below 80%. Current: 78.9%",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                StudentId = "s2",
+                StudentName = "Bob Smith",
+                Status = "sent",
+                CreatedAt = DateTime.Now.AddHours(-6),
+                SentAt = DateTime.Now.AddHours(-6),
+                TriggerReason = "Attendance below threshold"
+            },            new AutomationLog
+            {
+                Id = "log2",
+                LogId = "log2",
+                Type = "assignment_reminder",
+                Title = "Assignment Due Tomorrow",
+                Message = "Reminder: HTML/CSS Portfolio assignment is due tomorrow.",
+                CourseId = "2",
+                CourseName = "Web Development",
+                Status = "sent",
+                CreatedAt = DateTime.Now.AddHours(-12),
+                SentAt = DateTime.Now.AddHours(-12),
+                TriggerReason = "24 hours before deadline"
+            }
+        };
+
+        public TeacherService(HttpClient httpClient)
+        {
+            _httpClient = httpClient;
+        }        // Dashboard Statistics
+        public async Task<TeacherDashboardStats> GetTeacherDashboardStatsAsync(string teacherId)
+        {
+            try
+            {
+                // Get teacher's courses from database
+                var allCourses = await _databaseService.GetAllAsync<Course>("courses");
+                var teacherCourses = allCourses.Where(c => c.TeacherId == teacherId && c.IsActive).ToList();
+                
+                // Get assignments from database
+                var assignments = await _databaseService.GetAllAsync<AssignmentModel>("assignments");
+                var teacherAssignments = assignments.Where(a => teacherCourses.Any(c => c.Id == a.CourseId)).ToList();
+                
+                // Get notifications from database
+                var notifications = await _databaseService.GetAllAsync<NotificationModel>("notifications");
+                var recentNotifications = notifications.Where(n => n.CreatedAt >= DateTime.Now.AddDays(-7)).ToList();
+
+                var stats = new TeacherDashboardStats
+                {
+                    TotalCourses = teacherCourses.Count,
+                    TotalStudents = teacherCourses.Sum(c => c.EnrolledStudents ?? 0),
+                    PendingAssignments = teacherAssignments.Count(a => !a.IsPublished),
+                    UpcomingClasses = GetUpcomingClassesCount(teacherId),
+                    TotalNotifications = recentNotifications.Count,
+                    AverageAttendance = teacherCourses.Any() ? teacherCourses.Average(c => c.AttendanceRate ?? 0) : 0,
+                    RecentActivities = await GetRecentTeacherActivitiesAsync(teacherId)
+                };
+
+                return stats;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting teacher dashboard stats: {ex.Message}");
+                return new TeacherDashboardStats(); // Return empty stats if error
+            }
+        }
+
+        // Course Management
+        public async Task<List<TeacherCourse>> GetTeacherCoursesAsync(string teacherId)
+        {
+            await Task.Delay(400);
+            return _teacherCourses.Where(c => c.IsActive).OrderBy(c => c.Code).ToList();
+        }
+
+        public async Task<TeacherCourse?> GetCourseDetailsAsync(string courseId)
+        {
+            await Task.Delay(300);
+            return _teacherCourses.FirstOrDefault(c => c.Id == courseId);
+        }
+
+        public async Task<List<CourseStudent>> GetCourseStudentsAsync(string courseId)
+        {
+            await Task.Delay(300);
+            // For demo, return different students based on course
+            if (courseId == "1") // CS101
+                return _courseStudents.Where(s => s.StudentId.StartsWith("CS")).ToList();
+            else if (courseId == "2") // IT201
+                return _courseStudents.Where(s => s.StudentId.StartsWith("IT")).ToList();
+            else
+                return _courseStudents.Take(10).ToList(); // Default for other courses
+        }
+
+        // Attendance Management
+        public async Task<List<AttendanceSession>> GetAttendanceSessionsAsync(string courseId, DateTime? fromDate = null, DateTime? toDate = null)
+        {
+            await Task.Delay(300);
+            var query = _attendanceSessions.Where(a => a.CourseId == courseId).AsQueryable();
+
+            if (fromDate.HasValue)
+                query = query.Where(a => a.ClassDate >= fromDate.Value);
+
+            if (toDate.HasValue)
+                query = query.Where(a => a.ClassDate <= toDate.Value);
+
+            return query.OrderByDescending(a => a.ClassDate).ToList();
+        }
+
+        public async Task<SaveResult> MarkAttendanceAsync(TeacherMarkAttendanceModel model, string teacherId)
+        {
+            await Task.Delay(600);
+
+            var session = new AttendanceSession
+            {
+                Id = Guid.NewGuid().ToString(),
+                CourseId = model.CourseId,
+                ClassDate = model.ClassDate,
+                ClassType = model.ClassType,
+                Topic = model.Topic,
+                IsCompleted = true,
+                TotalStudents = model.Students.Count,
+                PresentStudents = model.Students.Count(s => s.IsPresent),
+                AbsentStudents = model.Students.Count(s => !s.IsPresent),
+                CreatedAt = DateTime.Now
+            };
+
+            // Get course details
+            var course = _teacherCourses.FirstOrDefault(c => c.Id == model.CourseId);
+            if (course != null)
+            {
+                session.CourseName = course.Name;
+                session.CourseCode = course.Code;
+            }
+
+            _attendanceSessions.Add(session);
+
+            bool automationTriggered = false;
+            
+            // Create automation logs for low attendance students
+            foreach (var student in model.Students.Where(s => !s.IsPresent))
+            {
+                var log = new AutomationLog
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Type = "attendance_notification",
+                    Title = "Absence Notification",
+                    Message = $"You were marked absent in {course?.Code} class on {model.ClassDate:MMM dd}",
+                    CourseId = model.CourseId,
+                    CourseName = course?.Name ?? "",
+                    StudentId = student.StudentId,
+                    StudentName = student.StudentName,
+                    Status = "sent",
+                    CreatedAt = DateTime.Now,
+                    SentAt = DateTime.Now,
+                    TriggerReason = "Student marked absent"
+                };
+                _automationLogs.Add(log);
+                automationTriggered = true;
+            }
+
+            return SaveResult.Successful(automationTriggered, "Attendance marked successfully");
+        }
+
+        public async Task<AttendanceSession?> GetAttendanceSessionDetailsAsync(string sessionId)
+        {
+            await Task.Delay(200);
+            return _attendanceSessions.FirstOrDefault(a => a.Id == sessionId);
+        }
+
+        // Assignment Management
+        public async Task<List<AssignmentModel>> GetAssignmentsAsync(string? courseId = null)
+        {
+            await Task.Delay(400);
+            var query = _assignments.AsQueryable();
+
+            if (!string.IsNullOrEmpty(courseId))
+                query = query.Where(a => a.CourseId == courseId);
+
+            return query.OrderByDescending(a => a.CreatedAt).ToList();
+        }
+
+        public async Task<SaveResult> CreateAssignmentAsync(TeacherCreateAssignmentModel model, string teacherId)
+        {
+            await Task.Delay(500);
+
+            var course = _teacherCourses.FirstOrDefault(c => c.Id == model.CourseId);
+            if (course == null) return SaveResult.Failed("Course not found");
+
+            var assignment = new AssignmentModel
+            {
+                Id = Guid.NewGuid().ToString(),
+                Title = model.Title,
+                Description = model.Description,
+                CourseId = model.CourseId,
+                CourseName = course.Name,
+                CourseCode = course.Code,
+                DueDate = model.DueDate,
+                MaxScore = model.MaxScore,
+                AssignmentType = model.AssignmentType,
+                AllowLateSubmission = model.AllowLateSubmission,
+                LatePenaltyPercentage = model.LatePenaltyPercentage,
+                IsPublished = model.IsPublished,
+                TotalStudents = course.EnrolledStudents,
+                SubmittedCount = 0,
+                PendingCount = course.EnrolledStudents,
+                GradedCount = 0,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            };
+
+            _assignments.Add(assignment);
+
+            bool automationTriggered = false;
+            
+            // Create automation log for assignment notification
+            if (model.IsPublished)
+            {
+                var log = new AutomationLog
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Type = "assignment_notification",
+                    Title = "New Assignment Created",
+                    Message = $"New assignment '{model.Title}' has been published in {course.Code}",
+                    CourseId = model.CourseId,
+                    CourseName = course.Name,
+                    Status = "sent",
+                    CreatedAt = DateTime.Now,
+                    SentAt = DateTime.Now,
+                    TriggerReason = "Assignment published"
+                };
+                _automationLogs.Add(log);
+                automationTriggered = true;
+            }
+
+            return SaveResult.Successful(automationTriggered, "Assignment created successfully");
+        }
+
+        public async Task<AssignmentModel?> GetAssignmentDetailsAsync(string assignmentId)
+        {
+            await Task.Delay(300);
+            return _assignments.FirstOrDefault(a => a.Id == assignmentId);
+        }
+
+        // Results/Grades Management
+        public async Task<List<ResultModel>> GetStudentResultsAsync(string courseId)
+        {
+            await Task.Delay(400);
+            var students = await GetCourseStudentsAsync(courseId);
+            var course = _teacherCourses.FirstOrDefault(c => c.Id == courseId);
+
+            return students.Select(s => new ResultModel
+            {
+                Id = Guid.NewGuid().ToString(),
+                StudentId = s.Id,
+                StudentName = s.FullName,
+                StudentEmail = s.Email,
+                CourseId = courseId,
+                CourseName = course?.Name ?? "",
+                CourseCode = course?.Code ?? "",
+                MidtermScore = GetRandomScore(),
+                FinalScore = null, // Not yet taken
+                AssignmentAverage = GetRandomScore(),
+                QuizAverage = GetRandomScore(),
+                TotalScore = s.OverallGrade,
+                LetterGrade = CalculateLetterGrade(s.OverallGrade ?? 0),
+                Status = s.GradeStatus,
+                LastUpdated = DateTime.Now.AddDays(-Random.Shared.Next(1, 30))
+            }).ToList();
+        }
+
+        public async Task<SaveResult> UpdateStudentResultAsync(string resultId, ResultModel result)
+        {
+            await Task.Delay(400);
+            // In a real implementation, this would update the database
+            // For now, we'll just simulate success
+
+            // Create automation log for result update
+            var log = new AutomationLog
+            {
+                Id = Guid.NewGuid().ToString(),
+                Type = "result_notification",
+                Title = "Results Updated",
+                Message = $"Your results for {result.CourseCode} have been updated",
+                CourseId = result.CourseId,
+                CourseName = result.CourseName,
+                StudentId = result.StudentId,
+                StudentName = result.StudentName,
+                Status = "sent",
+                CreatedAt = DateTime.Now,
+                SentAt = DateTime.Now,
+                TriggerReason = "Results updated by teacher"
+            };
+            _automationLogs.Add(log);
+
+            return SaveResult.Successful(true, "Student result updated successfully");
+        }
+
+        // Notice/Communication Management
+        public async Task<List<NoticeModel>> GetNoticesAsync(string? courseId = null)
+        {
+            await Task.Delay(300);
+            var query = _notices.AsQueryable();
+
+            if (!string.IsNullOrEmpty(courseId))
+                query = query.Where(n => n.CourseId == courseId || n.CourseId == null);
+
+            return query.OrderByDescending(n => n.CreatedAt).ToList();
+        }
+
+        public async Task<SaveResult> CreateNoticeAsync(NoticeModel notice, string teacherId)
+        {
+            await Task.Delay(400);
+
+            notice.Id = Guid.NewGuid().ToString();
+            notice.CreatedBy = teacherId;
+            notice.CreatedByName = "Teacher"; // In real app, get from user context
+            notice.CreatedAt = DateTime.Now;
+            notice.UpdatedAt = DateTime.Now;
+
+            bool automationTriggered = false;
+
+            if (notice.IsPublished)
+            {
+                notice.PublishedAt = DateTime.Now;
+                
+                // Calculate recipients
+                if (!string.IsNullOrEmpty(notice.CourseId))
+                {
+                    var course = _teacherCourses.FirstOrDefault(c => c.Id == notice.CourseId);
+                    notice.TotalRecipients = course?.EnrolledStudents ?? 0;
+                    notice.DeliveredCount = notice.TotalRecipients;
+                    notice.ReadCount = (int)(notice.TotalRecipients * 0.7); // Simulate 70% read rate
+                }
+                automationTriggered = true;
+            }
+
+            _notices.Add(notice);
+
+            // Create automation log
+            var log = new AutomationLog
+            {
+                Id = Guid.NewGuid().ToString(),
+                Type = "notice_notification",
+                Title = "New Notice Published",
+                Message = notice.Title,
+                CourseId = notice.CourseId,
+                CourseName = notice.CourseName,
+                Status = "sent",
+                CreatedAt = DateTime.Now,
+                SentAt = DateTime.Now,
+                TriggerReason = "Notice published"
+            };
+            _automationLogs.Add(log);
+
+            return SaveResult.Successful(automationTriggered, "Notice created successfully");
+        }
+
+        // Automation Logs
+        public async Task<List<AutomationLog>> GetAutomationLogsAsync(string? courseId = null, string? type = null)
+        {
+            await Task.Delay(300);
+            var query = _automationLogs.AsQueryable();
+
+            if (!string.IsNullOrEmpty(courseId))
+                query = query.Where(l => l.CourseId == courseId);
+
+            if (!string.IsNullOrEmpty(type))
+                query = query.Where(l => l.Type == type);
+
+            return query.OrderByDescending(l => l.CreatedAt).ToList();
+        }
+
+        // Method aliases for compatibility
+        public async Task<TeacherDashboardStats> GetDashboardStatsAsync(string teacherId)
+        {
+            return await GetTeacherDashboardStatsAsync(teacherId);
+        }        public async Task<List<AssignmentModel>> GetCourseAssignmentsAsync(string courseId)
+        {
+            await Task.Delay(300);
+            // Return assignments for the specific course
+            return _assignments.Where(a => a.CourseId == courseId).ToList();
+        }        public async Task<List<ResultModel>> GetAssignmentResultsAsync(string assignmentId)
+        {
+            await Task.Delay(400);
+            // For now, return all results - in real implementation, filter by assignment
+            return _resultModels.ToList();
+        }
+
+        public async Task<SaveResult> SaveResultAsync(ResultModel result)
+        {
+            await Task.Delay(300);
+            return SaveResult.Successful(false, "Result saved successfully"); // Simulate successful save
+        }
+
+        public async Task<SaveResult> PublishResultsAsync(string assignmentId)
+        {
+            await Task.Delay(500);
+            return SaveResult.Successful(true, "Results published successfully"); // Simulate successful publish with automation
+        }public async Task<List<NoticeModel>> GetTeacherNoticesAsync(string teacherId)
+        {
+            await Task.Delay(400);
+            return _notices.Where(n => n.CreatedBy == teacherId).ToList();
+        }
+
+        public async Task<SaveResult> PublishNoticeAsync(string noticeId)
+        {
+            await Task.Delay(300);
+            var notice = _notices.FirstOrDefault(n => n.Id == noticeId);
+            if (notice != null)
+            {
+                notice.IsPublished = true;
+                notice.PublishedAt = DateTime.Now;
+                return SaveResult.Successful(true, "Notice published successfully");
+            }
+            return SaveResult.Failed("Notice not found");
+        }
+
+        public async Task<AttendanceSession?> GetAttendanceSessionAsync(string courseId, DateTime sessionDate)
+        {
+            await Task.Delay(300);
+            return _attendanceSessions.FirstOrDefault(s => s.CourseId == courseId && s.ClassDate.Date == sessionDate.Date);
+        }
+
+        public async Task<SaveResult> SaveAttendanceAsync(AttendanceSession session)
+        {
+            await Task.Delay(400);
+            var existing = _attendanceSessions.FirstOrDefault(s => s.Id == session.Id);
+            if (existing != null)
+            {
+                _attendanceSessions.Remove(existing);
+            }
+            _attendanceSessions.Add(session);
+            return SaveResult.Successful(false, "Attendance saved successfully");
+        }
+
+        public async Task<SaveResult> RetryAutomationAsync(string logId)
+        {
+            await Task.Delay(500);
+            var log = _automationLogs.FirstOrDefault(l => l.Id == logId);
+            if (log != null)
+            {
+                log.Status = "sent";
+                log.SentAt = DateTime.Now;
+                return SaveResult.Successful(true, "Automation retried successfully");
+            }
+            return SaveResult.Failed("Automation log not found");
+        }
+
+        // Helper Methods
+        private int GetUpcomingClassesCount(string teacherId)
+        {
+            // For demo, return a random number between 5-10
+            return Random.Shared.Next(5, 11);
+        }
+
+        private List<TeacherActivityModel> GetRecentTeacherActivities()
+        {
+            return new List<TeacherActivityModel>
+            {
+                new TeacherActivityModel
+                {
+                    Id = "1",
+                    Title = "Assignment submitted",
+                    Description = "Alice Johnson submitted Linked List Implementation",
+                    Type = "assignment",
+                    CourseCode = "CS101",
+                    StudentName = "Alice Johnson",
+                    CreatedAt = DateTime.Now.AddHours(-2)
+                },
+                new TeacherActivityModel
+                {
+                    Id = "2",
+                    Title = "Attendance marked",
+                    Description = "Attendance marked for Web Development class",
+                    Type = "attendance",
+                    CourseCode = "IT201",
+                    CreatedAt = DateTime.Now.AddHours(-4)
+                },
+                new TeacherActivityModel
+                {
+                    Id = "3",
+                    Title = "Results updated",
+                    Description = "Midterm results published for Database Systems",
+                    Type = "result",
+                    CourseCode = "CS301",
+                    CreatedAt = DateTime.Now.AddDays(-1)
+                },
+                new TeacherActivityModel
+                {
+                    Id = "4",
+                    Title = "Notice published",
+                    Description = "Class cancellation notice sent",
+                    Type = "notice",
+                    CourseCode = "IT201",
+                    CreatedAt = DateTime.Now.AddDays(-1)
+                },
+                new TeacherActivityModel
+                {
+                    Id = "5",
+                    Title = "Low attendance alert",
+                    Description = "Automated alert sent to Bob Smith",
+                    Type = "attendance",
+                    CourseCode = "CS101",
+                    StudentName = "Bob Smith",
+                    CreatedAt = DateTime.Now.AddDays(-2)
+                }
+            };
+        }
+
+        private double? GetRandomScore()
+        {
+            // Generate realistic scores between 60-95
+            return Random.Shared.Next(60, 96) + Random.Shared.NextDouble();
+        }
+
+        private string CalculateLetterGrade(double score)
+        {
+            return score switch
+            {
+                >= 90 => "A",
+                >= 80 => "B",
+                >= 70 => "C",
+                >= 60 => "D",
+                _ => "F"
+            };
+        }
+    }
+}

@@ -1,0 +1,387 @@
+@page "/student/results"
+@layout StudentLayout
+@using Campus360.Services
+@using Campus360.Models
+@inject StudentService StudentService
+@inject UserContextService UserContext
+
+<div class="container-fluid p-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">
+                    <i class="fas fa-chart-line text-primary me-2"></i>
+                    My Results
+                </h2>
+                <div class="d-flex gap-2">
+                    <select @bind="selectedSemester" class="form-select" style="width: auto;">
+                        <option value="">All Semesters</option>
+                        <option value="Fall 2024">Fall 2024</option>
+                        <option value="Spring 2024">Spring 2024</option>
+                        <option value="Summer 2024">Summer 2024</option>
+                    </select>
+                    <select @bind="selectedCourse" class="form-select" style="width: auto;">
+                        <option value="">All Courses</option>
+                        @if (results != null)
+                        {
+                            @foreach (var courseGroup in results.GroupBy(r => r.CourseName))
+                            {
+                                <option value="@courseGroup.Key">@courseGroup.Key</option>
+                            }
+                        }
+                    </select>
+                    <button class="btn btn-outline-primary" @onclick="RefreshData">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading your results...</p>
+                </div>
+            }
+            else
+            {
+                <!-- Performance Summary -->
+                @if (performance != null)
+                {
+                    <div class="row mb-4">
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body text-center">
+                                    <div class="fs-2 fw-bold @GetGpaColorClass(performance.AverageScore) mb-2">
+                                        @performance.AverageScore.ToString("F2")
+                                    </div>
+                                    <div class="text-muted">Overall GPA</div>
+                                    <div class="text-muted small">out of 4.0</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body text-center">
+                                    <div class="fs-2 fw-bold text-success mb-2">@performance.HighestScore.ToString("F1")</div>
+                                    <div class="text-muted">Highest Score</div>
+                                    <div class="text-muted small">This semester</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body text-center">
+                                    <div class="fs-2 fw-bold text-primary mb-2">@performance.TotalExams</div>
+                                    <div class="text-muted">Total Exams</div>
+                                    <div class="text-success small">@performance.PassedExams passed</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body text-center">
+                                    <div class="fs-2 fw-bold @GetImprovementColor() mb-2">
+                                        @GetImprovementPercentage()%
+                                    </div>
+                                    <div class="text-muted">Improvement</div>
+                                    <div class="text-muted small">From last semester</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- Results by Course -->
+                @if (filteredResults?.Any() == true)
+                {
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white">
+                            <h5 class="mb-0">Exam Results</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="bg-light">
+                                        <tr>
+                                            <th class="border-0 ps-4">Course</th>
+                                            <th class="border-0">Exam Type</th>
+                                            <th class="border-0">Date</th>
+                                            <th class="border-0">Score</th>
+                                            <th class="border-0">Grade</th>
+                                            <th class="border-0">Status</th>
+                                            <th class="border-0">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var result in filteredResults.OrderByDescending(r => r.ExamDate))
+                                        {
+                                            <tr>
+                                                <td class="ps-4">
+                                                    <div class="fw-semibold">@result.CourseName</div>
+                                                    <small class="text-muted">@result.CourseCode</small>
+                                                </td>
+                                                <td>
+                                                    <span class="badge @GetExamTypeBadgeClass(result.ExamType) rounded-pill">
+                                                        @result.ExamType
+                                                    </span>
+                                                </td>                                                <td>
+                                                    <div class="fw-semibold">@(result.ExamDate?.ToString("MMM dd, yyyy") ?? "N/A")</div>
+                                                    <small class="text-muted">@(result.ExamDate?.DayOfWeek.ToString() ?? "")</small>
+                                                </td>
+                                                <td>
+                                                    <div class="fw-bold @GetScoreColorClass(result.MarksObtained ?? 0, result.TotalMarks ?? 0)">
+                                                        @(result.MarksObtained ?? 0)/@(result.TotalMarks ?? 0)
+                                                    </div>
+                                                    <small class="text-muted">@GetPercentage(result.MarksObtained ?? 0, result.TotalMarks ?? 0)%</small>
+                                                </td>
+                                                <td>
+                                                    <span class="badge @GetGradeBadgeClass(result.Grade ?? "N/A") fs-6 rounded-pill">
+                                                        @(result.Grade ?? "N/A")
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge @GetResultStatusBadgeClass(result.Status) rounded-pill">
+                                                        <i class="fas @GetResultStatusIcon(result.Status) me-1"></i>
+                                                        @result.Status
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div class="dropdown">
+                                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                            <i class="fas fa-ellipsis-h"></i>
+                                                        </button>
+                                                        <ul class="dropdown-menu">
+                                                            <li><a class="dropdown-item" href="#"><i class="fas fa-file-pdf me-2"></i>Download Report</a></li>
+                                                            <li><a class="dropdown-item" href="#"><i class="fas fa-chart-bar me-2"></i>View Details</a></li>
+                                                            @if (!string.IsNullOrEmpty(result.TeacherComments))
+                                                            {
+                                                                <li><a class="dropdown-item" href="#" @onclick="() => ShowComments(result)"><i class="fas fa-comment me-2"></i>View Comments</a></li>
+                                                            }
+                                                        </ul>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Chart Section -->
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white">
+                                    <h5 class="mb-0">Performance Trend</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="performanceChart" style="height: 300px;">
+                                        <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+                                            <div class="text-center">
+                                                <i class="fas fa-chart-line fa-3x mb-3"></i>
+                                                <p>Performance chart will be displayed here</p>
+                                                <small>Chart implementation requires additional JavaScript libraries</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white">
+                                    <h5 class="mb-0">Grade Distribution</h5>
+                                </div>
+                                <div class="card-body">
+                                    @foreach (var gradeGroup in GetGradeDistribution())
+                                    {
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge @GetGradeBadgeClass(gradeGroup.Key) me-2">@gradeGroup.Key</span>
+                                                <span>@gradeGroup.Key Grade</span>
+                                            </div>
+                                            <div class="d-flex align-items-center">
+                                                <div class="progress me-2" style="width: 100px; height: 8px;">
+                                                    <div class="progress-bar @GetGradeProgressClass(gradeGroup.Key)" 
+                                                         style="width: @GetGradePercentage(gradeGroup.Count())%"></div>
+                                                </div>
+                                                <span class="fw-semibold">@gradeGroup.Count()</span>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-5">
+                        <i class="fas fa-chart-line text-muted" style="font-size: 4rem;"></i>
+                        <h4 class="mt-3 text-muted">No Results Found</h4>
+                        <p class="text-muted">No exam results found for the selected criteria.</p>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private List<StudentResult>? results;
+    private StudentPerformance? performance;
+    private string selectedSemester = "";
+    private string selectedCourse = "";
+
+    private IEnumerable<StudentResult> filteredResults
+    {
+        get
+        {
+            var filtered = results ?? Enumerable.Empty<StudentResult>();
+            
+            if (!string.IsNullOrEmpty(selectedSemester))
+            {
+                filtered = filtered.Where(r => r.Semester == selectedSemester);
+            }
+            
+            if (!string.IsNullOrEmpty(selectedCourse))
+            {
+                filtered = filtered.Where(r => r.CourseName == selectedCourse);
+            }
+            
+            return filtered;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            var currentUser = await UserContext.GetCurrentUserAsync();
+            if (currentUser != null)
+            {
+                results = await StudentService.GetStudentResultsAsync(currentUser.Id);
+                performance = await StudentService.GetStudentPerformanceAsync(currentUser.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading results: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadData();
+    }
+
+    private void ShowComments(StudentResult result)
+    {
+        // Implementation for showing comments modal
+        // This would typically show a modal dialog with teacher comments
+    }
+
+    private string GetGpaColorClass(double gpa) => gpa switch
+    {
+        >= 3.5 => "text-success",
+        >= 3.0 => "text-info", 
+        >= 2.5 => "text-warning",
+        _ => "text-danger"
+    };
+
+    private string GetImprovementColor()
+    {
+        var improvement = GetImprovementPercentage();
+        return improvement >= 0 ? "text-success" : "text-danger";
+    }
+
+    private double GetImprovementPercentage()
+    {
+        // Mock calculation - in real implementation, this would compare with previous semester
+        return new Random().NextDouble() * 20 - 10; // Random between -10 to +10
+    }
+
+    private string GetExamTypeBadgeClass(string examType) => examType?.ToLower() switch
+    {
+        "midterm" => "bg-info",
+        "final" => "bg-primary",
+        "quiz" => "bg-warning",
+        "assignment" => "bg-success",
+        _ => "bg-secondary"
+    };
+
+    private string GetScoreColorClass(double obtained, double total)
+    {
+        var percentage = (obtained / total) * 100;
+        return percentage switch
+        {
+            >= 90 => "text-success",
+            >= 80 => "text-info",
+            >= 70 => "text-warning", 
+            >= 60 => "text-danger",
+            _ => "text-danger"
+        };
+    }
+
+    private double GetPercentage(double obtained, double total) => (obtained / total) * 100;
+
+    private string GetGradeBadgeClass(string grade) => grade switch
+    {
+        "A+" or "A" => "bg-success",
+        "A-" or "B+" => "bg-info",
+        "B" or "B-" => "bg-warning",
+        "C+" or "C" => "bg-secondary",
+        _ => "bg-danger"
+    };
+
+    private string GetGradeProgressClass(string grade) => grade switch
+    {
+        "A+" or "A" => "bg-success",
+        "A-" or "B+" => "bg-info", 
+        "B" or "B-" => "bg-warning",
+        "C+" or "C" => "bg-secondary",
+        _ => "bg-danger"
+    };
+
+    private string GetResultStatusBadgeClass(string status) => status?.ToLower() switch
+    {
+        "passed" => "bg-success",
+        "failed" => "bg-danger",
+        "pending" => "bg-warning",
+        "incomplete" => "bg-secondary",
+        _ => "bg-secondary"
+    };
+
+    private string GetResultStatusIcon(string status) => status?.ToLower() switch
+    {
+        "passed" => "fa-check",
+        "failed" => "fa-times",
+        "pending" => "fa-clock",
+        "incomplete" => "fa-exclamation-triangle",
+        _ => "fa-question"
+    };    private IGrouping<string, StudentResult>[] GetGradeDistribution()
+    {
+        return filteredResults?.GroupBy(r => r.Grade ?? "N/A").ToArray() ?? Array.Empty<IGrouping<string, StudentResult>>();
+    }
+
+    private double GetGradePercentage(int count)
+    {
+        var total = filteredResults?.Count() ?? 1;
+        return (count / (double)total) * 100;
+    }
+}

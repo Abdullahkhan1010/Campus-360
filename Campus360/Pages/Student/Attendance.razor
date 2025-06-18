@@ -1,0 +1,365 @@
+@page "/student/attendance"
+@layout StudentLayout
+@using Campus360.Services
+@using Campus360.Models
+@inject StudentService StudentService
+@inject UserContextService UserContext
+
+<div class="container-fluid p-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">
+                    <i class="fas fa-calendar-check text-primary me-2"></i>
+                    My Attendance
+                </h2>
+                <div class="d-flex gap-2">
+                    <select @bind="selectedCourse" class="form-select" style="width: auto;">
+                        <option value="">All Courses</option>
+                        @if (courses != null)
+                        {
+                            @foreach (var course in courses)
+                            {
+                                <option value="@course.CourseId">@course.CourseName</option>
+                            }
+                        }
+                    </select>
+                    <select @bind="selectedMonth" class="form-select" style="width: auto;">
+                        <option value="">All Months</option>
+                        <option value="1">January</option>
+                        <option value="2">February</option>
+                        <option value="3">March</option>
+                        <option value="4">April</option>
+                        <option value="5">May</option>
+                        <option value="6">June</option>
+                        <option value="7">July</option>
+                        <option value="8">August</option>
+                        <option value="9">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                    </select>
+                </div>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading attendance data...</p>
+                </div>
+            }
+            else
+            {
+                <!-- Attendance Summary Cards -->
+                <div class="row mb-4">
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body text-center">
+                                <div class="fs-2 fw-bold text-success mb-2">@GetOverallAttendancePercentage()%</div>
+                                <div class="text-muted">Overall Attendance</div>
+                                <div class="progress mt-2" style="height: 4px;">
+                                    <div class="progress-bar bg-success" style="width: @GetOverallAttendancePercentage()%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body text-center">
+                                <div class="fs-2 fw-bold text-primary mb-2">@GetTotalClassesAttended()</div>
+                                <div class="text-muted">Classes Attended</div>
+                                <small class="text-muted">out of @GetTotalClasses()</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body text-center">
+                                <div class="fs-2 fw-bold text-warning mb-2">@GetTotalAbsences()</div>
+                                <div class="text-muted">Total Absences</div>
+                                <small class="text-muted">This semester</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body text-center">
+                                <div class="fs-2 fw-bold @GetAttendanceStatusColor() mb-2">
+                                    @GetAttendanceStatus()
+                                </div>
+                                <div class="text-muted">Attendance Status</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Course-wise Attendance -->
+                @if (courses?.Any() == true)
+                {
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white">
+                            <h5 class="mb-0">Course-wise Attendance</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                @foreach (var course in courses)
+                                {
+                                    <div class="col-md-6 col-lg-4 mb-3">
+                                        <div class="border rounded p-3">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <h6 class="mb-0">@course.CourseName</h6>                                                <span class="badge @GetCourseAttendanceBadgeClass(course.AttendancePercentage) rounded-pill">
+                                                    @course.AttendancePercentage.ToString("F0")%
+                                                </span>
+                                            </div>
+                                            <div class="progress mb-2" style="height: 6px;">
+                                                <div class="progress-bar @GetCourseAttendanceProgressClass(course.AttendancePercentage)" 
+                                                     style="width: @(course.AttendancePercentage)%"></div>
+                                            </div>
+                                            <small class="text-muted">
+                                                @GetCourseAttendanceText(course)
+                                            </small>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- Recent Attendance Records -->
+                @if (attendanceRecords?.Any() == true)
+                {
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Recent Attendance Records</h5>
+                            <small class="text-muted">Last 30 days</small>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="bg-light">
+                                        <tr>
+                                            <th class="border-0 ps-4">Date</th>
+                                            <th class="border-0">Course</th>
+                                            <th class="border-0">Time</th>
+                                            <th class="border-0">Status</th>
+                                            <th class="border-0">Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var record in filteredAttendanceRecords.Take(20))
+                                        {
+                                            <tr>
+                                                <td class="ps-4">
+                                                    <div class="fw-semibold">@record.Date.ToString("MMM dd, yyyy")</div>
+                                                    <small class="text-muted">@record.Date.DayOfWeek</small>
+                                                </td>
+                                                <td>
+                                                    <div class="fw-semibold">@record.CourseName</div>
+                                                    <small class="text-muted">@record.CourseCode</small>
+                                                </td>
+                                                <td>
+                                                    @record.ClassTime
+                                                </td>
+                                                <td>
+                                                    <span class="badge @GetAttendanceStatusBadgeClass(record.Status) rounded-pill">
+                                                        <i class="fas @GetAttendanceStatusIcon(record.Status) me-1"></i>
+                                                        @record.Status
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="text-muted small">
+                                                        @(string.IsNullOrEmpty(record.Remarks) ? "-" : record.Remarks)
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-5">
+                        <i class="fas fa-calendar-times text-muted" style="font-size: 4rem;"></i>
+                        <h4 class="mt-3 text-muted">No Attendance Records</h4>
+                        <p class="text-muted">No attendance records found for the selected criteria.</p>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private List<StudentCourse>? courses;
+    private List<AttendanceRecord>? attendanceRecords;
+    private string selectedCourse = "";
+    private string selectedMonth = "";
+
+    private IEnumerable<AttendanceRecord> filteredAttendanceRecords
+    {
+        get
+        {
+            var records = attendanceRecords ?? Enumerable.Empty<AttendanceRecord>();
+            
+            if (!string.IsNullOrEmpty(selectedCourse))
+            {
+                records = records.Where(r => r.CourseId == selectedCourse);
+            }
+            
+            if (!string.IsNullOrEmpty(selectedMonth) && int.TryParse(selectedMonth, out int month))
+            {
+                records = records.Where(r => r.Date.Month == month);
+            }
+            
+            return records.OrderByDescending(r => r.Date);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            var currentUser = await UserContext.GetCurrentUserAsync();            if (currentUser != null)
+            {
+                courses = await StudentService.GetStudentCoursesAsync(currentUser.Id);
+                var studentAttendanceRecords = await StudentService.GetAttendanceRecordsAsync(currentUser.Id);
+                
+                // Convert StudentAttendanceRecord to local AttendanceRecord
+                attendanceRecords = studentAttendanceRecords.Select(r => new AttendanceRecord
+                {
+                    Id = r.Id,
+                    CourseId = r.CourseId,
+                    CourseName = r.CourseName,
+                    CourseCode = r.CourseCode,
+                    Date = r.ClassDate,
+                    ClassTime = "10:00 AM", // Mock time - this should come from schedule data
+                    Status = r.Status,
+                    Remarks = r.Remarks
+                }).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading attendance data: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }    private double GetOverallAttendancePercentage()
+    {
+        if (courses?.Any() != true) return 0;
+        var coursesWithAttendance = courses.Where(c => c.AttendancePercentage > 0);
+        return coursesWithAttendance.Any() ? coursesWithAttendance.Average(c => c.AttendancePercentage) : 0;
+    }
+
+    private int GetTotalClassesAttended()
+    {
+        return attendanceRecords?.Count(r => r.Status == "Present") ?? 0;
+    }
+
+    private int GetTotalClasses()
+    {
+        return attendanceRecords?.Count() ?? 0;
+    }
+
+    private int GetTotalAbsences()
+    {
+        return attendanceRecords?.Count(r => r.Status == "Absent") ?? 0;
+    }
+
+    private string GetAttendanceStatus()
+    {
+        var percentage = GetOverallAttendancePercentage();
+        return percentage switch
+        {
+            >= 90 => "Excellent",
+            >= 80 => "Good", 
+            >= 75 => "Satisfactory",
+            >= 70 => "Warning",
+            _ => "Critical"
+        };
+    }
+
+    private string GetAttendanceStatusColor()
+    {
+        var percentage = GetOverallAttendancePercentage();
+        return percentage switch
+        {
+            >= 90 => "text-success",
+            >= 80 => "text-info",
+            >= 75 => "text-warning", 
+            >= 70 => "text-danger",
+            _ => "text-danger"
+        };
+    }
+
+    private string GetCourseAttendanceBadgeClass(double? percentage) => percentage switch
+    {
+        >= 90 => "bg-success",
+        >= 80 => "bg-info",
+        >= 75 => "bg-warning",
+        >= 70 => "bg-danger", 
+        _ => "bg-danger"
+    };
+
+    private string GetCourseAttendanceProgressClass(double? percentage) => percentage switch
+    {
+        >= 90 => "bg-success",
+        >= 80 => "bg-info", 
+        >= 75 => "bg-warning",
+        >= 70 => "bg-danger",
+        _ => "bg-danger"
+    };    private string GetCourseAttendanceText(StudentCourse course)
+    {
+        // This would typically come from the attendance records for the specific course
+        var totalClasses = 30; // Mock data - should come from actual course data
+        var attendedClasses = (int)(course.AttendancePercentage * totalClasses / 100);
+        return $"{attendedClasses}/{totalClasses} classes attended";
+    }
+
+    private string GetAttendanceStatusBadgeClass(string status) => status?.ToLower() switch
+    {
+        "present" => "bg-success",
+        "absent" => "bg-danger", 
+        "late" => "bg-warning",
+        "excused" => "bg-info",
+        _ => "bg-secondary"
+    };
+
+    private string GetAttendanceStatusIcon(string status) => status?.ToLower() switch
+    {
+        "present" => "fa-check",
+        "absent" => "fa-times",
+        "late" => "fa-clock", 
+        "excused" => "fa-info-circle",
+        _ => "fa-question"
+    };
+
+    // Mock AttendanceRecord class - this should be defined in StudentModels.cs
+    public class AttendanceRecord
+    {
+        public string Id { get; set; } = "";
+        public string CourseId { get; set; } = "";
+        public string CourseName { get; set; } = "";
+        public string CourseCode { get; set; } = "";
+        public DateTime Date { get; set; }
+        public string ClassTime { get; set; } = "";
+        public string Status { get; set; } = "";
+        public string? Remarks { get; set; }
+    }
+}

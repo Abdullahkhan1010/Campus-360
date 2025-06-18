@@ -1,0 +1,439 @@
+@* Modern Form Components - Maintains full backend compatibility *@
+
+<style>
+/* ===================================================================
+   MODERN FORM COMPONENTS
+   ================================================================= */
+
+/* Modern Input Field */
+.modern-form-group {
+    position: relative;
+    margin-bottom: var(--space-lg);
+}
+
+.modern-input {
+    width: 100%;
+    padding: var(--space-md) var(--space-md) var(--space-md) var(--space-md);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: all var(--transition-normal);
+    outline: none;
+}
+
+.modern-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+    transform: translateY(-1px);
+}
+
+.modern-input:focus + .floating-label,
+.modern-input:not(:placeholder-shown) + .floating-label {
+    transform: translateY(-30px) scale(0.85);
+    color: var(--primary-color);
+    background-color: var(--bg-secondary);
+    padding: 0 var(--space-sm);
+}
+
+.floating-label {
+    position: absolute;
+    left: var(--space-md);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 1rem;
+    pointer-events: none;
+    transition: all var(--transition-normal);
+    background-color: transparent;
+}
+
+/* Modern Select */
+.modern-select {
+    position: relative;
+}
+
+.modern-select select {
+    width: 100%;
+    padding: var(--space-md);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right var(--space-md) center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+    padding-right: 40px;
+}
+
+.modern-select select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+    outline: none;
+}
+
+/* Modern Checkbox */
+.modern-checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+    cursor: pointer;
+}
+
+.modern-checkbox input[type="checkbox"] {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-secondary);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    position: relative;
+}
+
+.modern-checkbox input[type="checkbox"]:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.modern-checkbox input[type="checkbox"]:checked::after {
+    content: '✓';
+    position: absolute;
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.modern-checkbox input[type="checkbox"]:focus {
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+    outline: none;
+}
+
+.checkbox-label {
+    font-weight: 500;
+    color: var(--text-primary);
+    user-select: none;
+}
+
+/* Modern Button */
+.modern-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    padding: var(--space-md) var(--space-xl);
+    border: none;
+    border-radius: var(--radius-lg);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    text-decoration: none;
+    position: relative;
+    overflow: hidden;
+}
+
+.modern-btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    transition: width 0.6s, height 0.6s;
+    transform: translate(-50%, -50%);
+}
+
+.modern-btn:hover::before {
+    width: 300px;
+    height: 300px;
+}
+
+.modern-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.modern-btn:disabled:hover {
+    transform: none;
+}
+
+/* Button Variants */
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: var(--bg-hover);
+    border-color: var(--border-hover);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, var(--success-color), #059669);
+    color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, var(--error-color), #dc2626);
+    color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(239, 68, 68, 0.3);
+}
+
+.btn-outline {
+    background: transparent;
+    color: var(--primary-color);
+    border: 2px solid var(--primary-color);
+}
+
+.btn-outline:hover:not(:disabled) {
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Button Sizes */
+.btn-sm {
+    padding: var(--space-sm) var(--space-md);
+    font-size: 0.875rem;
+}
+
+.btn-lg {
+    padding: var(--space-lg) var(--space-2xl);
+    font-size: 1.125rem;
+}
+
+/* Modern Form Actions */
+.form-actions {
+    display: flex;
+    gap: var(--space-md);
+    justify-content: flex-end;
+    margin-top: var(--space-xl);
+    padding-top: var(--space-xl);
+    border-top: 1px solid var(--border-color);
+}
+
+/* Modern Card Form */
+.form-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    padding: var(--space-2xl);
+    box-shadow: var(--shadow-sm);
+    animation: slideUp var(--transition-normal) ease-out;
+}
+
+.form-card-header {
+    margin-bottom: var(--space-xl);
+    text-align: center;
+}
+
+.form-card-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+}
+
+.form-card-subtitle {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+/* Loading Button State */
+.btn-loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.btn-loading .btn-text {
+    opacity: 0;
+}
+
+.btn-loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* 
+keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+*/
+
+/* Form Validation */
+.form-error {
+    color: var(--error-color);
+    font-size: 0.875rem;
+    margin-top: var(--space-xs);
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.form-success {
+    color: var(--success-color);
+    font-size: 0.875rem;
+    margin-top: var(--space-xs);
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.input-error {
+    border-color: var(--error-color) !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.input-success {
+    border-color: var(--success-color) !important;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
+}
+
+/* Responsive Forms */
+/* 
+media (max-width: 768px) {
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .modern-btn {
+        width: 100%;
+    }
+    
+    .form-card {
+        padding: var(--space-xl);
+    }
+}
+*/
+</style>
+
+@* Reusable Form Components *@
+
+@* Modern Input Component *@
+@if (Type == "text" || Type == "email" || Type == "password" || Type == "number")
+{
+    <div class="modern-form-group">
+        <input type="@Type" 
+               class="modern-input @CssClass @(HasError ? "input-error" : "") @(HasSuccess ? "input-success" : "")"
+               placeholder=" " 
+               @bind="@Value" 
+               @attributes="@AdditionalAttributes" />
+        <label class="floating-label">@Label</label>
+        @if (HasError && !string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="form-error">
+                <i class="bi bi-exclamation-circle-fill"></i>
+                @ErrorMessage
+            </div>
+        }
+        @if (HasSuccess && !string.IsNullOrEmpty(SuccessMessage))
+        {
+            <div class="form-success">
+                <i class="bi bi-check-circle-fill"></i>
+                @SuccessMessage
+            </div>
+        }
+    </div>
+}
+
+@* Modern Select Component *@
+@if (Type == "select")
+{
+    <div class="modern-form-group">
+        <div class="modern-select">
+            <select class="@CssClass @(HasError ? "input-error" : "") @(HasSuccess ? "input-success" : "")"
+                    @bind="@Value" 
+                    @attributes="@AdditionalAttributes">
+                <option value="">Select @Label</option>
+                @if (Options != null)
+                {
+                    @foreach (var option in Options)
+                    {
+                        <option value="@option.Value">@option.Text</option>
+                    }
+                }
+            </select>
+        </div>
+        @if (HasError && !string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="form-error">
+                <i class="bi bi-exclamation-circle-fill"></i>
+                @ErrorMessage
+            </div>
+        }
+    </div>
+}
+
+@* Modern Checkbox Component *@
+@if (Type == "checkbox")
+{
+    <label class="modern-checkbox">
+        <input type="checkbox" 
+               @bind="@BoolValue" 
+               @attributes="@AdditionalAttributes" />
+        <span class="checkbox-label">@Label</span>
+    </label>
+}
+
+@code {
+    [Parameter] public string Type { get; set; } = "text";
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public bool BoolValue { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public EventCallback<bool> BoolValueChanged { get; set; }
+    [Parameter] public string CssClass { get; set; } = string.Empty;
+    [Parameter] public bool HasError { get; set; }
+    [Parameter] public bool HasSuccess { get; set; }
+    [Parameter] public string ErrorMessage { get; set; } = string.Empty;
+    [Parameter] public string SuccessMessage { get; set; } = string.Empty;
+    [Parameter] public List<SelectOption>? Options { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    public class SelectOption
+    {
+        public string Value { get; set; } = string.Empty;
+        public string Text { get; set; } = string.Empty;
+    }
+}

@@ -1,0 +1,435 @@
+@page "/teacher/results"
+@layout TeacherLayout
+@inject TeacherService TeacherService
+@inject UserContextService UserContext
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@using Microsoft.AspNetCore.Components.Forms
+
+<PageTitle>Upload Results - Campus360</PageTitle>
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold mb-0">Upload Results</h2>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" @onclick="ShowCreateAssignmentModal">
+                <i class="bi bi-plus-circle me-2"></i>Create Assignment
+            </button>
+            <button class="btn btn-outline-success" @onclick="ShowBulkUploadModal">
+                <i class="bi bi-cloud-upload me-2"></i>Bulk Upload
+            </button>
+        </div>
+    </div>
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title">Select Course</h6>
+                    <select class="form-select" @bind="selectedCourseId" @bind:after="OnCourseChanged">
+                        <option value="">Select a course...</option>
+                        @if (teacherCourses != null)
+                        {
+                            @foreach (var course in teacherCourses)
+                            {
+                                <option value="@course.CourseId">@course.CourseCode - @course.CourseName</option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title">Select Assignment</h6>
+                    <select class="form-select" @bind="selectedAssignmentId" @bind:after="OnAssignmentChanged" disabled="@string.IsNullOrEmpty(selectedCourseId)">
+                        <option value="">Select an assignment...</option>
+                        @if (courseAssignments != null)
+                        {
+                            @foreach (var assignment in courseAssignments)
+                            {
+                                <option value="@assignment.AssignmentId">@assignment.Title (@assignment.MaxMarks marks)</option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title">Grading Summary</h6>
+                    @if (studentResults != null && studentResults.Any())
+                    {
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="text-success fs-6 fw-bold">@gradedCount</div>
+                                <small class="text-muted">Graded</small>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-warning fs-6 fw-bold">@(studentResults.Count - gradedCount)</div>
+                                <small class="text-muted">Pending</small>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">Select assignment to view summary.</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(selectedAssignmentId) && studentResults != null)
+    {
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Student Results</h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-success" @onclick="SaveAllResults" disabled="@(!hasUnsavedChanges)">
+                        <i class="bi bi-check-circle me-1"></i>Save All
+                    </button>
+                    <button class="btn btn-sm btn-info" @onclick="PublishResults" disabled="@(gradedCount == 0)">
+                        <i class="bi bi-send me-1"></i>Publish Results
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                @if (selectedAssignment != null)
+                {
+                    <div class="alert alert-info">
+                        <strong>@selectedAssignment.Title</strong> - Max Marks: @selectedAssignment.MaxMarks | 
+                        Due Date: @selectedAssignment.DueDate.ToString("MMM dd, yyyy") |
+                        Status: <span class="badge bg-@(selectedAssignment.IsPublished ? "success" : "warning")">
+                            @(selectedAssignment.IsPublished ? "Published" : "Draft")
+                        </span>
+                    </div>
+                }
+
+                @if (studentResults.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Roll Number</th>
+                                    <th>Student Name</th>
+                                    <th style="width: 120px;">Marks Obtained</th>
+                                    <th style="width: 80px;">Grade</th>
+                                    <th style="width: 200px;">Comments</th>
+                                    <th style="width: 100px;">Status</th>
+                                    <th style="width: 120px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var result in studentResults)
+                                {
+                                    <tr class="@(result.IsGraded ? "table-success" : "table-light")">
+                                        <td class="fw-bold">@result.RollNumber</td>
+                                        <td>@result.StudentName</td>
+                                        <td>                                        <input type="number" class="form-control form-control-sm" 
+                                               @bind="result.MarksObtained" 
+                                               @bind:after="() => OnMarksChanged(result)"
+                                               min="0" max="@selectedAssignment?.MaxMarks" 
+                                               step="0.5" />
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-@GetGradeBadgeColor(result.Grade)">
+                                            @result.Grade
+                                        </span>
+                                    </td>
+                                    <td>                                        <input type="text" class="form-control form-control-sm" 
+                                               @bind="result.Comments" 
+                                               @bind:after="() => OnCommentsChanged(result)"
+                                               placeholder="Comments..." />
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-@(result.IsGraded ? "success" : "warning")">
+                                            @(result.IsGraded ? "Graded" : "Pending")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-success" 
+                                                    @onclick="() => SaveResult(result)"
+                                                    disabled="@(!result.HasChanges)">
+                                                <i class="bi bi-check"></i>
+                                            </button>
+                                            <button class="btn btn-outline-info" 
+                                                    @onclick="() => ViewSubmission(result)">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>No students enrolled in this course.
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>Please select a course and assignment to manage results.
+        </div>
+    }
+
+    <!-- Create Assignment Modal -->
+    <CreateAssignmentModal @ref="createAssignmentModal" OnAssignmentCreated="OnAssignmentCreated" />
+
+    <!-- Bulk Upload Modal -->
+    <div class="modal fade" id="bulkUploadModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Bulk Upload Results</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Select CSV File</label>
+                        <InputFile class="form-control" accept=".csv" OnChange="OnFileSelected" />
+                        <div class="form-text">Upload a CSV file with columns: RollNumber, MarksObtained, Comments</div>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Download the <a href="#" @onclick="DownloadTemplate">sample template</a> to see the required format.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="ProcessBulkUpload" disabled="@(selectedFile == null)">
+                        <i class="bi bi-cloud-upload me-2"></i>Upload
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="modal fade" id="successModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-check-circle me-2"></i>Results Published
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Results have been successfully published and notifications sent to students.</p>
+                    @if (automationTriggered)
+                    {
+                        <div class="alert alert-info">
+                            <i class="bi bi-robot me-2"></i>
+                            <strong>Automation Triggered:</strong> Performance alerts sent to students and parents based on results.
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" data-bs-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<TeacherCourse>? teacherCourses;
+    private List<AssignmentModel>? courseAssignments;
+    private List<ResultModel>? studentResults;
+    private AssignmentModel? selectedAssignment;
+    private string selectedCourseId = "";
+    private string selectedAssignmentId = "";
+    private bool hasUnsavedChanges = false;
+    private bool automationTriggered = false;
+    private IBrowserFile? selectedFile;
+    private CreateAssignmentModal? createAssignmentModal;
+
+    private int gradedCount => studentResults?.Count(r => r.IsGraded) ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (UserContext.CurrentUser != null)
+        {
+            teacherCourses = await TeacherService.GetTeacherCoursesAsync(UserContext.CurrentUser.Id);
+        }        // Check for courseId query parameter
+        var uri = new Uri(Navigation.Uri);
+        var queryString = uri.Query;
+        if (queryString.Contains("courseId="))
+        {
+            var courseIdParam = queryString.Split('&')
+                .FirstOrDefault(q => q.StartsWith("courseId=") || q.StartsWith("?courseId="))
+                ?.Split('=')[1];
+            
+            if (!string.IsNullOrEmpty(courseIdParam))
+            {
+                selectedCourseId = courseIdParam;
+                await OnCourseChanged();
+            }
+        }
+    }    private async Task OnCourseChanged()
+    {
+        if (!string.IsNullOrEmpty(selectedCourseId))
+        {
+            courseAssignments = await TeacherService.GetCourseAssignmentsAsync(selectedCourseId);
+        }
+        else
+        {
+            courseAssignments = null;
+        }
+        
+        selectedAssignmentId = "";
+        studentResults = null;
+        hasUnsavedChanges = false;
+    }    private async Task OnAssignmentChanged()
+    {
+        if (!string.IsNullOrEmpty(selectedAssignmentId))
+        {
+            selectedAssignment = courseAssignments?.FirstOrDefault(a => a.Id == selectedAssignmentId);
+            studentResults = await TeacherService.GetAssignmentResultsAsync(selectedAssignmentId);
+        }
+        else
+        {
+            selectedAssignment = null;
+            studentResults = null;
+        }
+        hasUnsavedChanges = false;
+    }
+
+    private void OnMarksChanged(ResultModel result)
+    {
+        result.HasChanges = true;
+        result.IsGraded = result.MarksObtained.HasValue;
+          if (result.MarksObtained.HasValue && selectedAssignment != null)
+        {
+            result.Grade = CalculateGrade((decimal)result.MarksObtained.Value, selectedAssignment.MaxMarks);
+        }
+        
+        hasUnsavedChanges = true;
+    }
+
+    private void OnCommentsChanged(ResultModel result)
+    {
+        result.HasChanges = true;
+        hasUnsavedChanges = true;
+    }
+
+    private string CalculateGrade(decimal marks, decimal maxMarks)
+    {
+        var percentage = (marks / maxMarks) * 100;
+        return percentage switch
+        {
+            >= 90 => "A+",
+            >= 80 => "A",
+            >= 70 => "B+",
+            >= 60 => "B",
+            >= 50 => "C+",
+            >= 40 => "C",
+            >= 30 => "D",
+            _ => "F"
+        };
+    }
+
+    private string GetGradeBadgeColor(string? grade)
+    {
+        return grade switch
+        {
+            "A+" or "A" => "success",
+            "B+" or "B" => "primary",
+            "C+" or "C" => "warning",
+            "D" => "secondary",
+            "F" => "danger",
+            _ => "light"
+        };
+    }    private async Task SaveResult(ResultModel result)
+    {
+        var saveResult = await TeacherService.SaveResultAsync(result);
+        if (saveResult.Success)
+        {
+            result.HasChanges = false;
+            hasUnsavedChanges = studentResults?.Any(r => r.HasChanges) ?? false;
+        }
+    }
+
+    private async Task SaveAllResults()
+    {
+        if (studentResults == null) return;
+
+        var changedResults = studentResults.Where(r => r.HasChanges).ToList();
+        foreach (var result in changedResults)
+        {
+            await SaveResult(result);
+        }
+    }
+
+    private async Task PublishResults()
+    {
+        if (selectedAssignment == null || studentResults == null) return;
+
+        var result = await TeacherService.PublishResultsAsync(selectedAssignment.AssignmentId);
+        if (result.Success)
+        {
+            automationTriggered = result.AutomationTriggered;
+            selectedAssignment.IsPublished = true;
+            await InvokeAsync(() => JSRuntime.InvokeVoidAsync("showModal", "successModal"));
+        }
+    }
+
+    private async Task ShowCreateAssignmentModal()
+    {
+        if (createAssignmentModal != null)
+        {
+            await createAssignmentModal.ShowAsync(selectedCourseId);
+        }
+    }
+
+    private async Task ShowBulkUploadModal()
+    {
+        await InvokeAsync(() => JSRuntime.InvokeVoidAsync("showModal", "bulkUploadModal"));
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+    }
+
+    private async Task ProcessBulkUpload()
+    {
+        if (selectedFile == null || string.IsNullOrEmpty(selectedAssignmentId)) return;
+
+        // Process CSV file logic would go here
+        // For now, just close the modal
+        await InvokeAsync(() => JSRuntime.InvokeVoidAsync("hideModal", "bulkUploadModal"));
+    }
+
+    private async Task DownloadTemplate()
+    {
+        // Generate and download CSV template
+        await Task.CompletedTask;
+    }
+
+    private void ViewSubmission(ResultModel result)
+    {
+        // Navigate to submission details or show modal
+        Navigation.NavigateTo($"/teacher/submissions/{result.ResultId}");
+    }
+
+    private async Task OnAssignmentCreated()
+    {
+        if (!string.IsNullOrEmpty(selectedCourseId))
+        {
+            courseAssignments = await TeacherService.GetCourseAssignmentsAsync(selectedCourseId);
+        }
+    }
+}

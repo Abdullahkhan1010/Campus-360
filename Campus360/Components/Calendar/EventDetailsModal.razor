@@ -1,0 +1,306 @@
+@using Campus360.Models
+@using Campus360.Services
+@inject IJSRuntime JSRuntime
+@inject CalendarService CalendarService
+@inject ActivityLogService ActivityLogService
+
+@if (IsVisible)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1" aria-modal="true" role="dialog">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" style="background-color: @Event?.Color; color: white;">
+                    <h5 class="modal-title">
+                        <i class="@GetEventIcon(Event?.EventType.ToString() ?? "")" aria-hidden="true"></i>
+                        @Event?.Title
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" aria-label="Close" @onclick="HideModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (Event != null)
+                    {
+                        <div class="event-details">
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <span class="badge @GetEventBadgeClass(Event.EventType.ToString())">@Event.EventType</span>
+                                    @if (Event.Priority != EventPriority.Normal)
+                                    {
+                                        <span class="badge @GetPriorityBadgeClass(Event.Priority.ToString()) ms-1">@Event.Priority</span>
+                                    }
+                                </div>
+                            </div>
+                            
+                            @if (!string.IsNullOrEmpty(Event.Description))
+                            {
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <div class="description-box p-2 rounded">
+                                            <p class="mb-0">@Event.Description</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="bi bi-calendar-date me-2"></i>
+                                        <span>@FormatDate()</span>
+                                    </div>
+                                    
+                                    @if (!string.IsNullOrEmpty(Event.Venue))
+                                    {
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-geo-alt me-2"></i>
+                                            <span>@Event.Venue</span>
+                                        </div>
+                                    }
+                                    
+                                    @if (!string.IsNullOrEmpty(Event.CourseId))
+                                    {
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-book me-2"></i>
+                                            <span>
+                                                @Event.CourseName
+                                                @if (!string.IsNullOrEmpty(Event.CourseCode))
+                                                {
+                                                    <span class="text-muted">(@Event.CourseCode)</span>
+                                                }
+                                            </span>
+                                        </div>
+                                    }
+                                    
+                                    @if (!string.IsNullOrEmpty(Event.CreatedBy))
+                                    {
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-person me-2"></i>
+                                            <span>Created by @Event.CreatedByName</span>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                            
+                            @if (Event.HasReminder)
+                            {
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <div class="alert alert-info mb-0 d-flex align-items-center">
+                                            <i class="bi bi-bell me-2"></i>
+                                            <div>Reminder set for this event</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            
+                            @if (Event.Tags.Any())
+                            {
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @foreach (var tag in Event.Tags)
+                                            {
+                                                <span class="badge bg-light text-dark">@tag</span>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    @if (AllowEdit && Event != null && CanEditEvent())
+                    {
+                        <button type="button" class="btn btn-outline-danger me-auto" @onclick="DeleteEvent">
+                            <i class="bi bi-trash me-1"></i>Delete
+                        </button>
+                        
+                        <button type="button" class="btn btn-outline-primary" @onclick="EditEvent">
+                            <i class="bi bi-pencil me-1"></i>Edit
+                        </button>
+                    }
+                    
+                    <button type="button" class="btn btn-secondary" @onclick="HideModal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    [Parameter] public AcademicEvent? Event { get; set; }    [Parameter] public bool AllowEdit { get; set; } = false;
+    [Parameter] public string UserRole { get; set; } = string.Empty;
+    [Parameter] public string UserId { get; set; } = "system";
+    [Parameter] public EventCallback OnEventUpdated { get; set; }
+    [Parameter] public EventCallback OnEventDeleted { get; set; }
+    [Parameter] public EventCallback<AcademicEvent> OnEditEvent { get; set; }
+    
+    private bool IsVisible { get; set; } = false;
+      public async Task ShowAsync(AcademicEvent eventDetails)
+    {
+        Event = eventDetails;
+        IsVisible = true;
+        StateHasChanged();
+        
+        // Small delay to ensure DOM is updated
+        await Task.Delay(100);
+    }
+    
+    private void HideModal()
+    {
+        IsVisible = false;
+    }
+      private async Task EditEvent()
+    {
+        if (Event == null) return;
+        
+        // Hide this modal and invoke the callback to open the edit modal
+        HideModal();
+        await OnEditEvent.InvokeAsync(Event);
+    }
+    
+    private async Task DeleteEvent()
+    {
+        if (Event == null) return;
+        
+        bool confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this event?");
+        
+        if (confirmed)
+        {
+            try
+            {                // Call the service to delete the event and log activity
+                var result = await CalendarService.DeleteEventAsync(Event.Id, UserId);
+                
+                if (result.Success)
+                {
+                    await OnEventDeleted.InvokeAsync();
+                }
+                else
+                {
+                    await JSRuntime.InvokeVoidAsync("showToast", "error", result.Message ?? "Failed to delete event");
+                    return;
+                }
+                HideModal();
+                
+                await JSRuntime.InvokeVoidAsync("showToast", "success", "Event deleted successfully!");
+            }
+            catch (Exception ex)
+            {
+                await JSRuntime.InvokeVoidAsync("showToast", "error", $"Error deleting event: {ex.Message}");
+            }
+        }
+    }
+    
+    private bool CanEditEvent()
+    {
+        if (Event == null) return false;
+        
+        // Logic to determine if the current user can edit this event
+        // Admin can edit all events
+        if (UserRole == "Admin") return true;
+        
+        // Teachers can edit their own events
+        if (UserRole == "Teacher" && Event.CreatedBy == Event.CreatedBy) return true;
+        
+        return false;
+    }
+    
+    private string FormatDate()
+    {
+        if (Event == null) return string.Empty;
+        
+        if (Event.StartDate.Date == Event.EndDate?.Date || Event.EndDate == null)
+        {
+            // Same day event
+            if (Event.IsAllDay)
+            {
+                return $"{Event.StartDate:MMMM dd, yyyy} (All day)";
+            }
+            else
+            {
+                var timeFormat = "h:mm tt";
+                var endTimeDisplay = Event.EndDate.HasValue ? $" - {Event.EndDate.Value.ToString(timeFormat)}" : "";
+                return $"{Event.StartDate:MMMM dd, yyyy} {Event.StartDate.ToString(timeFormat)}{endTimeDisplay}";
+            }
+        }
+        else
+        {
+            // Multi-day event
+            if (Event.IsAllDay)
+            {
+                return $"{Event.StartDate:MMM dd} - {Event.EndDate?.ToString("MMM dd, yyyy")} (All day)";
+            }
+            else
+            {
+                var timeFormat = "h:mm tt";
+                return $"{Event.StartDate:MMM dd} {Event.StartDate.ToString(timeFormat)} - {Event.EndDate?.ToString("MMM dd")} {Event.EndDate?.ToString(timeFormat)}";
+            }
+        }
+    }
+    
+    private string GetEventIcon(string eventType)
+    {
+        return eventType.ToLower() switch
+        {
+            "assignment" => "bi bi-file-earmark-text",
+            "exam" => "bi bi-pencil-square",
+            "notice" => "bi bi-megaphone",
+            "class" => "bi bi-easel",
+            "holiday" => "bi bi-calendar-check",
+            "semester" => "bi bi-calendar2-range",
+            "registration" => "bi bi-card-checklist",
+            "meeting" => "bi bi-people",
+            _ => "bi bi-calendar-event"
+        };
+    }
+    
+    private string GetEventBadgeClass(string eventType)
+    {
+        return eventType.ToLower() switch
+        {
+            "assignment" => "bg-primary",
+            "exam" => "bg-danger",
+            "notice" => "bg-info",
+            "class" => "bg-success",
+            "holiday" => "bg-warning",
+            "semester" => "bg-secondary",
+            "registration" => "bg-dark",
+            "meeting" => "bg-info",
+            _ => "bg-secondary"
+        };
+    }
+    
+    private string GetPriorityBadgeClass(string priority)
+    {
+        return priority.ToLower() switch
+        {
+            "critical" => "bg-danger",
+            "high" => "bg-warning text-dark",
+            "low" => "bg-info",
+            _ => "bg-secondary"
+        };
+    }
+}
+
+<style>
+    .description-box {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        font-size: 0.9rem;
+    }
+    
+    .modal-header .bi,
+    .modal-header .fas {
+        margin-right: 0.5rem;
+    }
+    
+    .event-details {
+        font-size: 0.9rem;
+    }
+    
+    .event-details .bi,
+    .event-details .fas {
+        width: 16px;
+    }
+</style>

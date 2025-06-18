@@ -1,0 +1,43 @@
+@inject UserContextService UserContext
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+@if (IsAuthenticated)
+{
+    @ChildContent
+}
+else
+{
+    <div class="d-flex justify-content-center align-items-center" style="height: 100vh;">
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Redirecting to login...</p>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string RequiredRole { get; set; } = "";
+    
+    private bool IsAuthenticated => UserContext.IsLoggedIn && 
+        (string.IsNullOrEmpty(RequiredRole) || UserContext.HasRole(RequiredRole));
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Restore session if possible
+        await UserContext.RestoreUserSessionAsync();
+        
+        if (!IsAuthenticated)
+        {
+            // Clear any stale session data
+            await UserContext.LogoutAsync();
+            
+            // Redirect to login with a slight delay to show the loading state
+            await Task.Delay(1000);
+            Navigation.NavigateTo("/login", forceLoad: true);
+        }
+    }
+}

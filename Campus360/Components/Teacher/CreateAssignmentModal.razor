@@ -1,0 +1,157 @@
+@using Campus360.Models
+@inject IJSRuntime JSRuntime
+
+<div class="modal fade" id="@ModalId" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <EditForm Model="AssignmentModel" OnValidSubmit="HandleSubmit">
+                <DataAnnotationsValidator />
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-plus-circle me-2"></i>Create New Assignment
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label class="form-label">Assignment Title *</label>
+                                <InputText @bind-Value="AssignmentModel.Title" class="form-control" placeholder="Enter assignment title" />
+                                <ValidationMessage For="@(() => AssignmentModel.Title)" />
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Course *</label>
+                                <InputSelect @bind-Value="AssignmentModel.CourseId" class="form-select">
+                                    <option value="">-- Select Course --</option>
+                                    @foreach (var course in TeacherCourses)
+                                    {
+                                        <option value="@course.Id">@course.Code - @course.Name</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => AssignmentModel.CourseId)" />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <InputTextArea @bind-Value="AssignmentModel.Description" class="form-control" rows="3" 
+                                     placeholder="Enter assignment description and requirements" />
+                        <ValidationMessage For="@(() => AssignmentModel.Description)" />
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Due Date *</label>
+                                <InputDate @bind-Value="AssignmentModel.DueDate" class="form-control" />
+                                <ValidationMessage For="@(() => AssignmentModel.DueDate)" />
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Assignment Type</label>
+                                <InputSelect @bind-Value="AssignmentModel.AssignmentType" class="form-select">
+                                    <option value="Assignment">Assignment</option>
+                                    <option value="Quiz">Quiz</option>
+                                    <option value="Project">Project</option>
+                                    <option value="Midterm">Midterm Exam</option>
+                                    <option value="Final">Final Exam</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Max Score *</label>
+                                <InputNumber @bind-Value="AssignmentModel.MaxScore" class="form-control" min="1" max="100" />
+                                <ValidationMessage For="@(() => AssignmentModel.MaxScore)" />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <InputCheckbox @bind-Value="AssignmentModel.AllowLateSubmission" class="form-check-input" id="allowLate" />
+                                    <label class="form-check-label" for="allowLate">
+                                        Allow Late Submission
+                                    </label>
+                                </div>
+                            </div>
+                            @if (AssignmentModel.AllowLateSubmission)
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label">Late Penalty (%)</label>
+                                    <InputNumber @bind-Value="AssignmentModel.LatePenaltyPercentage" class="form-control" min="0" max="50" />
+                                    <small class="text-muted">Percentage deducted per day late</small>
+                                </div>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <InputCheckbox @bind-Value="AssignmentModel.IsPublished" class="form-check-input" id="isPublished" />
+                                    <label class="form-check-label" for="isPublished">
+                                        Publish Immediately
+                                    </label>
+                                </div>
+                                <small class="text-muted">Students will be notified when published</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                        @if (IsSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        Create Assignment
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string ModalId { get; set; } = "createAssignmentModal";
+    [Parameter] public List<TeacherCourse> TeacherCourses { get; set; } = new();
+    [Parameter] public EventCallback OnAssignmentCreated { get; set; }
+
+    private TeacherCreateAssignmentModel AssignmentModel = new();
+    private bool IsSubmitting = false;
+    
+    public async Task ShowAsync(string? courseId = null)
+    {
+        AssignmentModel = new TeacherCreateAssignmentModel
+        {
+            DueDate = DateTime.Now.AddDays(7),
+            MaxScore = 100,
+            AssignmentType = "Assignment",
+            IsPublished = true,
+            CourseId = courseId ?? ""
+        };
+        await JSRuntime.InvokeVoidAsync("showModal", ModalId);
+    }
+
+    private async Task HandleSubmit()
+    {
+        IsSubmitting = true;
+        try
+        {
+            await OnAssignmentCreated.InvokeAsync();
+            await JSRuntime.InvokeVoidAsync("hideModal", ModalId);
+            AssignmentModel = new TeacherCreateAssignmentModel();
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+}

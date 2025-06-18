@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Campus360", "Campus360\Campus360.csproj", "{2DBB6DC1-0EC7-5D5D-C4B5-822E3A9CC7F0}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2DBB6DC1-0EC7-5D5D-C4B5-822E3A9CC7F0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2DBB6DC1-0EC7-5D5D-C4B5-822E3A9CC7F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2DBB6DC1-0EC7-5D5D-C4B5-822E3A9CC7F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2DBB6DC1-0EC7-5D5D-C4B5-822E3A9CC7F0}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C708F170-7157-4E8F-BB71-BCE7221C2554}
+	EndGlobalSection
+EndGlobal

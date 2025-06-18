@@ -1,0 +1,369 @@
+@page "/preferences"
+@using Campus360.Models
+@using Campus360.Services
+@inject SystemSettingsService SystemSettingsService
+@inject IJSRuntime JSRuntime
+@attribute [Authorize]
+
+<PageTitle>My Preferences - Campus360</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header pb-0">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <h6 class="mb-0">My Preferences</h6>
+                            <p class="text-sm mb-0">Customize your Campus360 experience</p>
+                        </div>
+                        <div>
+                            <button class="btn btn-success btn-sm" @onclick="SaveAllPreferences" disabled="@isSaving">
+                                @if (isSaving)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                }
+                                <i class="fas fa-save me-2"></i>Save All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    @if (isLoading)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading preferences...</span>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="row">
+                            <!-- Appearance Preferences -->
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Appearance</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="form-group">
+                                            <label for="theme">Theme</label>
+                                            <select id="theme" class="form-control" @bind="themePreference">
+                                                <option value="light">Light</option>
+                                                <option value="dark">Dark</option>
+                                                <option value="auto">Auto (System)</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="language">Language</label>
+                                            <select id="language" class="form-control" @bind="languagePreference">
+                                                <option value="en">English</option>
+                                                <option value="es">Spanish</option>
+                                                <option value="fr">French</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="pageSize">Items per page</label>
+                                            <select id="pageSize" class="form-control" @bind="pageSizePreference">
+                                                <option value="10">10</option>
+                                                <option value="25">25</option>
+                                                <option value="50">50</option>
+                                                <option value="100">100</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Notification Preferences -->
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Notifications</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" id="emailNotifications" @bind="emailNotificationsEnabled">
+                                            <label class="form-check-label" for="emailNotifications">
+                                                Email Notifications
+                                            </label>
+                                        </div>
+
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" id="assignmentReminders" @bind="assignmentRemindersEnabled">
+                                            <label class="form-check-label" for="assignmentReminders">
+                                                Assignment Reminders
+                                            </label>
+                                        </div>
+
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" id="attendanceAlerts" @bind="attendanceAlertsEnabled">
+                                            <label class="form-check-label" for="attendanceAlerts">
+                                                Attendance Alerts
+                                            </label>
+                                        </div>
+
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" id="gradeUpdates" @bind="gradeUpdatesEnabled">
+                                            <label class="form-check-label" for="gradeUpdates">
+                                                Grade Updates
+                                            </label>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="reminderTime">Reminder Time (hours before due)</label>
+                                            <select id="reminderTime" class="form-control" @bind="reminderTimePreference">
+                                                <option value="1">1 hour</option>
+                                                <option value="6">6 hours</option>
+                                                <option value="12">12 hours</option>
+                                                <option value="24">1 day</option>
+                                                <option value="48">2 days</option>
+                                                <option value="72">3 days</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-4">
+                            <!-- Calendar Preferences -->
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Calendar</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="form-group">
+                                            <label for="defaultView">Default Calendar View</label>
+                                            <select id="defaultView" class="form-control" @bind="calendarViewPreference">
+                                                <option value="month">Month</option>
+                                                <option value="week">Week</option>
+                                                <option value="day">Day</option>
+                                                <option value="agenda">Agenda</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="weekStart">Week starts on</label>
+                                            <select id="weekStart" class="form-control" @bind="weekStartPreference">
+                                                <option value="0">Sunday</option>
+                                                <option value="1">Monday</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" id="showWeekends" @bind="showWeekendsPreference">
+                                            <label class="form-check-label" for="showWeekends">
+                                                Show Weekends
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Dashboard Preferences -->
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Dashboard</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" id="showQuickStats" @bind="showQuickStatsPreference">
+                                            <label class="form-check-label" for="showQuickStats">
+                                                Show Quick Statistics
+                                            </label>
+                                        </div>
+
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" id="showRecentActivity" @bind="showRecentActivityPreference">
+                                            <label class="form-check-label" for="showRecentActivity">
+                                                Show Recent Activity
+                                            </label>
+                                        </div>
+
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" id="showUpcomingEvents" @bind="showUpcomingEventsPreference">
+                                            <label class="form-check-label" for="showUpcomingEvents">
+                                                Show Upcoming Events
+                                            </label>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="refreshInterval">Auto-refresh interval (minutes)</label>
+                                            <select id="refreshInterval" class="form-control" @bind="refreshIntervalPreference">
+                                                <option value="0">Never</option>
+                                                <option value="5">5 minutes</option>
+                                                <option value="10">10 minutes</option>
+                                                <option value="15">15 minutes</option>
+                                                <option value="30">30 minutes</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool isSaving = false;
+
+    // Appearance preferences
+    private string themePreference = "light";
+    private string languagePreference = "en";
+    private string pageSizePreference = "25";
+
+    // Notification preferences
+    private bool emailNotificationsEnabled = true;
+    private bool assignmentRemindersEnabled = true;
+    private bool attendanceAlertsEnabled = true;
+    private bool gradeUpdatesEnabled = true;
+    private string reminderTimePreference = "24";
+
+    // Calendar preferences
+    private string calendarViewPreference = "month";
+    private string weekStartPreference = "0";
+    private bool showWeekendsPreference = true;
+
+    // Dashboard preferences
+    private bool showQuickStatsPreference = true;
+    private bool showRecentActivityPreference = true;
+    private bool showUpcomingEventsPreference = true;
+    private string refreshIntervalPreference = "10";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPreferences();
+    }
+
+    private async Task LoadPreferences()
+    {
+        try
+        {
+            isLoading = true;
+
+            // Load all user preferences
+            var preferences = await SystemSettingsService.GetUserPreferencesAsync();
+
+            // Apply loaded preferences
+            foreach (var preference in preferences)
+            {
+                switch ($"{preference.Category}.{preference.Key}")
+                {
+                    case "appearance.theme":
+                        themePreference = preference.Value;
+                        break;
+                    case "appearance.language":
+                        languagePreference = preference.Value;
+                        break;
+                    case "appearance.page_size":
+                        pageSizePreference = preference.Value;
+                        break;
+                    case "notifications.email_enabled":
+                        emailNotificationsEnabled = preference.GetValue<bool>();
+                        break;
+                    case "notifications.assignment_reminders":
+                        assignmentRemindersEnabled = preference.GetValue<bool>();
+                        break;
+                    case "notifications.attendance_alerts":
+                        attendanceAlertsEnabled = preference.GetValue<bool>();
+                        break;
+                    case "notifications.grade_updates":
+                        gradeUpdatesEnabled = preference.GetValue<bool>();
+                        break;
+                    case "notifications.reminder_time":
+                        reminderTimePreference = preference.Value;
+                        break;
+                    case "calendar.default_view":
+                        calendarViewPreference = preference.Value;
+                        break;
+                    case "calendar.week_start":
+                        weekStartPreference = preference.Value;
+                        break;
+                    case "calendar.show_weekends":
+                        showWeekendsPreference = preference.GetValue<bool>();
+                        break;
+                    case "dashboard.show_quick_stats":
+                        showQuickStatsPreference = preference.GetValue<bool>();
+                        break;
+                    case "dashboard.show_recent_activity":
+                        showRecentActivityPreference = preference.GetValue<bool>();
+                        break;
+                    case "dashboard.show_upcoming_events":
+                        showUpcomingEventsPreference = preference.GetValue<bool>();
+                        break;
+                    case "dashboard.refresh_interval":
+                        refreshIntervalPreference = preference.Value;
+                        break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("showToast", "error", $"Error loading preferences: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveAllPreferences()
+    {
+        try
+        {
+            isSaving = true;
+
+            var preferences = new List<UserPreferenceDto>
+            {
+                // Appearance
+                new() { Category = "appearance", Key = "theme", Value = themePreference, ValueType = SettingValueType.String },
+                new() { Category = "appearance", Key = "language", Value = languagePreference, ValueType = SettingValueType.String },
+                new() { Category = "appearance", Key = "page_size", Value = pageSizePreference, ValueType = SettingValueType.Number },
+
+                // Notifications
+                new() { Category = "notifications", Key = "email_enabled", Value = emailNotificationsEnabled.ToString().ToLower(), ValueType = SettingValueType.Boolean },
+                new() { Category = "notifications", Key = "assignment_reminders", Value = assignmentRemindersEnabled.ToString().ToLower(), ValueType = SettingValueType.Boolean },
+                new() { Category = "notifications", Key = "attendance_alerts", Value = attendanceAlertsEnabled.ToString().ToLower(), ValueType = SettingValueType.Boolean },
+                new() { Category = "notifications", Key = "grade_updates", Value = gradeUpdatesEnabled.ToString().ToLower(), ValueType = SettingValueType.Boolean },
+                new() { Category = "notifications", Key = "reminder_time", Value = reminderTimePreference, ValueType = SettingValueType.Number },
+
+                // Calendar
+                new() { Category = "calendar", Key = "default_view", Value = calendarViewPreference, ValueType = SettingValueType.String },
+                new() { Category = "calendar", Key = "week_start", Value = weekStartPreference, ValueType = SettingValueType.Number },
+                new() { Category = "calendar", Key = "show_weekends", Value = showWeekendsPreference.ToString().ToLower(), ValueType = SettingValueType.Boolean },
+
+                // Dashboard
+                new() { Category = "dashboard", Key = "show_quick_stats", Value = showQuickStatsPreference.ToString().ToLower(), ValueType = SettingValueType.Boolean },
+                new() { Category = "dashboard", Key = "show_recent_activity", Value = showRecentActivityPreference.ToString().ToLower(), ValueType = SettingValueType.Boolean },
+                new() { Category = "dashboard", Key = "show_upcoming_events", Value = showUpcomingEventsPreference.ToString().ToLower(), ValueType = SettingValueType.Boolean },
+                new() { Category = "dashboard", Key = "refresh_interval", Value = refreshIntervalPreference, ValueType = SettingValueType.Number }
+            };
+
+            foreach (var preference in preferences)
+            {
+                await SystemSettingsService.SaveUserPreferenceAsync(preference);
+            }
+
+            await JSRuntime.InvokeVoidAsync("showToast", "success", "Preferences saved successfully!");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("showToast", "error", $"Error saving preferences: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

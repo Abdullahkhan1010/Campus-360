@@ -1,0 +1,622 @@
+@page "/admin/dashboard"
+@layout ModernAdminLayout_Fixed
+@inject AdminService AdminService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@using Campus360.Models 
+
+<PageTitle>Dashboard - Campus360 Admin</PageTitle>
+
+<div class="dashboard-container animate-fade-in">
+    <!-- Dashboard Header -->
+    <div class="modern-page-header">
+        <div class="modern-page-title">
+            <div class="modern-page-icon">
+                <i class="bi bi-house-door-fill"></i>
+            </div>
+            <div>
+                <h1>Admin Dashboard</h1>
+                <p>Welcome back! Here's what's happening at Campus360</p>
+            </div>
+        </div>
+        <div class="modern-page-actions">
+            <button class="modern-btn modern-btn-secondary" @onclick="RefreshData">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+            <button class="modern-btn modern-btn-primary" @onclick="NavigateToReports">
+                <i class="bi bi-bar-chart-line-fill"></i> View Reports
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Stats Cards -->
+    <div class="stats-grid">
+        <div class="stat-card hover-lift animate-slide-up" style="animation-delay: 0.1s">
+            <div class="stat-icon">
+                <i class="bi bi-people-fill"></i>
+            </div>
+            <div class="stat-value">@dashboardStats?.TotalUsers</div>
+            <div class="stat-label">Total Users</div>
+            <div class="stat-change positive">
+                <i class="bi bi-arrow-up"></i>
+                @dashboardStats?.TotalTeachers Teachers, @dashboardStats?.TotalStudents Students
+            </div>
+        </div>
+
+        <div class="stat-card hover-lift animate-slide-up" style="animation-delay: 0.2s">
+            <div class="stat-icon">
+                <i class="bi bi-book-fill"></i>
+            </div>
+            <div class="stat-value">@dashboardStats?.ActiveCourses</div>
+            <div class="stat-label">Active Courses</div>
+            <div class="stat-change positive">
+                <i class="bi bi-arrow-up"></i>
+                <span>Currently running</span>
+            </div>
+        </div>
+
+        <div class="stat-card hover-lift animate-slide-up" style="animation-delay: 0.3s">
+            <div class="stat-icon">
+                <i class="bi bi-building-fill"></i>
+            </div>
+            <div class="stat-value">@dashboardStats?.TotalDepartments</div>
+            <div class="stat-label">Departments</div>
+            <div class="stat-change positive">
+                <i class="bi bi-arrow-up"></i>
+                <span>Active departments</span>
+            </div>
+        </div>
+
+        <div class="stat-card hover-lift animate-slide-up" style="animation-delay: 0.4s">
+            <div class="stat-icon">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+            </div>
+            <div class="stat-value">@dashboardStats?.PendingApprovals</div>
+            <div class="stat-label">Pending Approvals</div>
+            <div class="stat-change @(dashboardStats?.PendingApprovals > 0 ? "warning" : "neutral")">
+                @if (dashboardStats?.PendingApprovals > 0)
+                {
+                    <i class="bi bi-patch-check-fill"></i>
+                    <span>Require verification</span>
+                }
+                else
+                {
+                    <i class="bi bi-check-circle-fill"></i>
+                    <span>None pending</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Content -->
+    <div class="dashboard-grid">
+        <!-- Recent Activity Card -->
+        <div class="modern-card animate-slide-up" style="animation-delay: 0.5s">
+            <div class="card-header">
+                Recent Activity
+            </div>
+            <div class="card-body">
+                @if (recentActivities != null && recentActivities.Any())
+                {
+                    <div class="activity-list">
+                        @foreach (var activity in recentActivities.Take(5)) // Show top 5
+                        {
+                            <div class="activity-item">
+                                <div class="@GetActivityIconClass(activity.ActivityType)">
+                                    <i class="bi @GetActivityIcon(activity.ActivityType)"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-title">@activity.Title</div>
+                                    <div class="activity-description">@activity.Description</div>
+                                    <div class="activity-time">@activity.Timestamp.ToString("MMM dd, hh:mm tt")</div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-state">
+                        <i class="bi bi-clock-history"></i>
+                        <p>No recent activity.</p>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Quick Actions Card -->
+        <div class="modern-card animate-slide-up" style="animation-delay: 0.6s">
+            <div class="card-header">
+                Quick Actions
+            </div>
+            <div class="card-body">
+                <div class="quick-actions-grid">
+                    <button class="action-btn" @onclick="NavigateToUsers">
+                        <div class="action-icon"><i class="bi bi-person-plus-fill"></i></div>
+                        <span>Manage Users</span>
+                    </button>
+                    <button class="action-btn" @onclick="NavigateToCourses">
+                        <div class="action-icon"><i class="bi bi-book-half"></i></div>
+                        <span>Manage Courses</span>
+                    </button>
+                    <button class="action-btn" @onclick="NavigateToAnnouncements">
+                        <div class="action-icon"><i class="bi bi-megaphone-fill"></i></div>
+                        <span>Post Announcement</span>
+                    </button>
+                    <button class="action-btn" @onclick="NavigateToSettings">
+                        <div class="action-icon"><i class="bi bi-gear-fill"></i></div>
+                        <span>System Settings</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Status Card -->
+        <div class="modern-card animate-slide-up" style="animation-delay: 0.7s">
+            <div class="card-header">
+                System Status
+            </div>
+            <div class="card-body">
+                <div class="status-list">
+                    <div class="status-item">
+                        <div class="status-indicator online"></div>
+                        <div class="status-label">Database</div>
+                        <div class="status-value">Online</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-indicator online"></div>
+                        <div class="status-label">API Service</div>
+                        <div class="status-value">Operational</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-indicator warning"></div>
+                        <div class="status-label">Background Jobs</div>
+                        <div class="status-value">Degraded</div>
+                    </div>
+                     <div class="status-item">
+                        <div class="status-indicator online"></div>
+                        <div class="status-label">Supabase Connection</div>
+                        <div class="status-value">Connected</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .dashboard-container {
+        max-width: 1400px; /* Or remove for full width within layout padding */
+        margin: 0 auto;
+        padding-top: var(--space-xl);
+    }
+
+    .modern-page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center; /* Vertically align items */
+        margin-bottom: var(--space-2xl);
+        padding-bottom: var(--space-lg);
+        border-bottom: 1px solid var(--theme-border-color);
+    }
+    .modern-page-title {
+        display: flex;
+        align-items: center;
+        gap: var(--space-md);
+    }
+    .modern-page-icon {
+        font-size: 1.8rem; /* Adjusted size */
+        background-color: var(--theme-primary-hover); /* Use a light primary bg */
+        color: var(--theme-primary-text);
+        border-radius: var(--radius-md);
+        width: 48px;
+        height: 48px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .modern-page-title h1 {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: var(--theme-text-primary);
+        margin: 0;
+    }
+    .modern-page-title p {
+        font-size: 0.9rem;
+        color: var(--theme-text-secondary);
+        margin-top: var(--space-xs);
+    }
+    .modern-page-actions {
+        display: flex;
+        gap: var(--space-md);
+    }
+    .modern-page-actions .modern-btn {
+        padding: var(--space-sm) var(--space-lg);
+        font-size: 0.9rem;
+        border-radius: var(--radius-md);
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        font-weight: 500;
+        display: inline-flex; /* Align icon and text */
+        align-items: center;
+        gap: var(--space-sm);
+    }
+    .modern-page-actions .modern-btn-secondary {
+        background-color: var(--theme-bg-card); /* Use card bg for secondary */
+        color: var(--theme-text-primary);
+        border-color: var(--theme-border-color);
+    }
+    .modern-page-actions .modern-btn-secondary:hover {
+        background-color: var(--theme-border-color);
+        border-color: var(--theme-text-secondary);
+    }
+    .modern-page-actions .modern-btn-primary {
+        background-color: var(--theme-primary);
+        color: var(--theme-primary-text);
+    }
+    .modern-page-actions .modern-btn-primary:hover {
+        background-color: var(--theme-primary-hover);
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); /* Adjusted minmax */
+        gap: var(--space-lg);
+        margin-bottom: var(--space-2xl);
+    }
+    .stat-card {
+        background-color: var(--theme-bg-card);
+        padding: var(--space-lg);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: 1px solid var(--theme-border-color);
+    }
+    .stat-card.hover-lift:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-md);
+    }
+    .stat-card .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: var(--space-md);
+        font-size: 1.5rem;
+        color: var(--theme-primary-text);
+    }
+    /* Theme stat card icons */
+    .stats-grid .stat-card:nth-child(1) .stat-icon { background-color: var(--theme-primary); }
+    .stats-grid .stat-card:nth-child(2) .stat-icon { background-color: var(--theme-accent); }
+    .stats-grid .stat-card:nth-child(3) .stat-icon { background-color: var(--theme-text-secondary); } /* Using gray for departments */
+    .stats-grid .stat-card:nth-child(4) .stat-icon { background-color: #F59E0B; } /* Amber for pending/warning */
+
+    .stat-card .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--theme-text-primary);
+        line-height: 1.2;
+    }
+    .stat-card .stat-label {
+        font-size: 0.9rem;
+        color: var(--theme-text-secondary);
+        margin-top: var(--space-xs);
+        margin-bottom: var(--space-sm);
+    }
+    .stat-card .stat-change {
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: var(--space-xs);
+    }
+    .stat-card .stat-change.positive { color: var(--theme-accent); }
+    .stat-card .stat-change.warning { color: #F59E0B; } /* Amber for warning text */
+    .stat-card .stat-change.neutral { color: var(--theme-text-secondary); }
+    .stat-card .stat-change i {
+        font-size: 0.9em; /* Relative to parent */
+    }
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr; /* Adjusted for 2 main columns */
+        gap: var(--space-xl);
+    }
+    /* Making the third card (System Status) span or stack if needed */
+    .dashboard-grid .modern-card:nth-child(3) {
+        grid-column: span 2; /* Span across two columns if only 3 cards */
+    }
+    @@media (min-width: 1200px) { /* For larger screens, 3 columns */
+        .dashboard-grid {
+            grid-template-columns: 2fr 1fr 1fr;
+        }
+        .dashboard-grid .modern-card:nth-child(3) {
+            grid-column: auto; /* Reset span */
+        }
+    }
+
+
+    .modern-card {
+        background-color: var(--theme-bg-card);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--theme-border-color);
+        overflow: hidden;
+        display: flex; /* Added for flex column layout */
+        flex-direction: column; /* Added */
+    }
+    .modern-card .card-header {
+        padding: var(--space-md) var(--space-lg); /* Adjusted padding */
+        border-bottom: 1px solid var(--theme-border-color);
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--theme-text-primary);
+        flex-shrink: 0; /* Added */
+    }
+    .modern-card .card-body {
+        padding: var(--space-lg);
+        flex-grow: 1; /* Added */
+        overflow-y: auto; /* Added for scrollable card body if needed */
+    }
+
+    .activity-list {
+        max-height: 350px; /* Adjust as needed */
+        overflow-y: auto;
+        padding-right: var(--space-sm); /* For scrollbar */
+    }
+    .activity-item {
+        display: flex;
+        gap: var(--space-md);
+        padding: var(--space-md) 0;
+        border-bottom: 1px solid var(--theme-border-color);
+    }
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+    .activity-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+    .activity-icon.user { background: var(--theme-primary); }
+    .activity-icon.course { background: var(--theme-accent); }
+    .activity-icon.assignment { background: #F59E0B; } /* Amber */
+    .activity-icon.system { background: var(--theme-text-secondary); } /* Gray */
+
+    .activity-content {
+        flex: 1;
+    }
+    .activity-title {
+        font-weight: 600;
+        color: var(--theme-text-primary);
+        margin-bottom: var(--space-xs);
+    }
+    .activity-description {
+        color: var(--theme-text-secondary);
+        font-size: 0.875rem;
+        margin-bottom: var(--space-xs);
+    }
+    .activity-time {
+        color: var(--theme-text-secondary);
+        font-size: 0.75rem;
+    }
+
+    .quick-actions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* Responsive columns */
+        gap: var(--space-md);
+    }
+    .action-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center; /* Center text */
+        gap: var(--space-sm);
+        padding: var(--space-lg);
+        background: var(--theme-bg-main); /* Use main bg for a lighter feel */
+        border: 1px solid var(--theme-border-color);
+        border-radius: var(--radius-md); /* Consistent radius */
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: var(--theme-text-primary);
+        font-weight: 500;
+        font-size: 0.875rem; /* Slightly smaller font */
+    }
+    .action-btn:hover {
+        background: var(--theme-border-color); /* Subtle hover */
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-sm);
+    }
+    .action-icon {
+        width: 36px; /* Adjusted size */
+        height: 36px; /* Adjusted size */
+        background: var(--theme-primary);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--theme-primary-text);
+        font-size: 1.1rem; /* Adjusted icon size */
+        margin-bottom: var(--space-xs); /* Space between icon and text */
+    }
+    .action-btn span {
+        line-height: 1.3; /* Improve text readability */
+    }
+
+    .status-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-md);
+    }
+    .status-item {
+        display: flex;
+        align-items: center;
+        gap: var(--space-md);
+    }
+    .status-indicator {
+        width: 10px; /* Slightly smaller */
+        height: 10px; /* Slightly smaller */
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+    .status-indicator.online {
+        background: var(--theme-accent);
+        box-shadow: 0 0 8px rgba(var(--theme-accent), 0.5); /* Use accent color for shadow */
+    }
+    .status-indicator.warning {
+        background: #F59E0B; /* Amber */
+        box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+    }
+    .status-indicator.offline { /* Assuming an error state */
+        background: #EF4444; /* Red */
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+    }
+    .status-label {
+        flex: 1;
+        color: var(--theme-text-primary);
+        font-weight: 500;
+    }
+    .status-value {
+        color: var(--theme-text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: var(--space-2xl);
+        color: var(--theme-text-secondary);
+        display: flex; /* Added */
+        flex-direction: column; /* Added */
+        align-items: center; /* Added */
+        justify-content: center; /* Added */
+        height: 100%; /* Added to fill card body */
+    }
+    .empty-state i {
+        font-size: 2.5rem; /* Adjusted size */
+        margin-bottom: var(--space-md);
+        opacity: 0.6;
+    }
+
+    .animate-fade-in {
+        animation: fadeInAnimation 0.5s ease-out forwards;
+    }
+    .animate-slide-up {
+        animation: slideUpAnimation 0.5s ease-out forwards;
+        opacity: 0; 
+    }
+
+    @@keyframes fadeInAnimation { 
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @@keyframes slideUpAnimation {
+        from { opacity: 0; transform: translateY(15px); } /* Slightly less travel */
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Ensure hover-lift class is defined or integrated */
+    .hover-lift:hover { /* Already handled by .stat-card:hover */ }
+
+</style>
+
+@code {
+    // Use the AdminDashboardStats model from Campus360.Models
+    private Campus360.Models.AdminDashboardStats? dashboardStats;
+    // Use the ActivityModel from Campus360.Models
+    private List<ActivityModel> recentActivities = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        await LoadDashboardData();
+        isLoading = false; 
+    }
+
+    private async Task LoadDashboardData()
+    {
+        try
+        {
+            await Task.Delay(300); // Simulate network latency
+            var statsTask = AdminService.GetDashboardStatsAsync();
+            var activitiesTask = AdminService.GetRecentActivitiesAsync(5); // Fetch 5 for display
+
+            await Task.WhenAll(statsTask, activitiesTask);
+
+            dashboardStats = await statsTask ?? new Campus360.Models.AdminDashboardStats { TotalUsers = 0, TotalTeachers = 0, TotalStudents = 0, ActiveCourses = 0, TotalDepartments = 0, PendingApprovals = 0, RecentActivities = new List<RecentActivity>() };
+            recentActivities = await activitiesTask ?? new List<ActivityModel>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading dashboard data: {ex.Message}");
+            dashboardStats ??= new Campus360.Models.AdminDashboardStats { TotalUsers = 0, TotalTeachers = 0, TotalStudents = 0, ActiveCourses = 0, TotalDepartments = 0, PendingApprovals = 0, RecentActivities = new List<RecentActivity>() };
+            recentActivities ??= new List<ActivityModel>();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        isLoading = true;
+        StateHasChanged(); 
+        await LoadDashboardData();
+    }
+
+    private void NavigateToUsers() => Navigation.NavigateTo("/admin/users");
+    private void NavigateToCourses() => Navigation.NavigateTo("/admin/courses");
+    private void NavigateToReports() => Navigation.NavigateTo("/admin/reports");
+    private void NavigateToSettings() => Navigation.NavigateTo("/admin/system-settings");
+    private void NavigateToAnnouncements() => Navigation.NavigateTo("/admin/announcements");
+
+    // Updated to use ActivityType from ActivityModel
+    private string GetActivityIcon(string? activityType) => activityType?.ToLower() switch
+    {
+        "user_created" => "bi-person-plus-fill",
+        "user_verified" => "bi-person-check-fill",
+        "user_updated" => "bi-person-gear",
+        "department_created" => "bi-building-plus",
+        "department_updated" => "bi-building-gear",
+        "department_deactivated" => "bi-building-dash",
+        "course_created" => "bi-book-plus-fill", // Assuming new icon/mapping
+        "course_updated" => "bi-book-half", // Assuming new icon/mapping
+        "course_assigned" => "bi-person-video3", // Assuming new icon/mapping
+        "system_event" => "bi-gear-fill", // Assuming new icon/mapping
+        "user" => "bi-person-fill", // Fallback for general user type
+        "course" => "bi-book-fill", // Fallback for general course type
+        "assignment" => "bi-file-earmark-text-fill", // Kept for now
+        "system" => "bi-gear-wide-connected", // Fallback for general system type
+        _ => "bi-info-circle-fill"
+    };
+
+    // Updated to use ActivityType from ActivityModel
+    private string GetActivityIconClass(string? activityType)
+    {
+        var typeClass = activityType?.ToLower() switch
+        {
+            var t when t != null && (t.Contains("user") || t.Contains("person")) => "user",
+            var t when t != null && t.Contains("course") => "course",
+            var t when t != null && t.Contains("department") => "department", // Added department
+            var t when t != null && t.Contains("assignment") => "assignment",
+            var t when t != null && t.Contains("system") => "system",
+            _ => "default"
+        };
+        return $"activity-icon {typeClass}";
+    }
+}

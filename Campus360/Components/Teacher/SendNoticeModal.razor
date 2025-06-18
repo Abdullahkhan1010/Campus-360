@@ -1,0 +1,236 @@
+@using Campus360.Models
+@using Microsoft.AspNetCore.Components.Forms
+@using Campus360.Services
+@inject IJSRuntime JSRuntime
+
+<div class="modal fade" id="@ModalId" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <EditForm Model="NoticeModel" OnValidSubmit="HandleSubmit">
+                <DataAnnotationsValidator />
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-megaphone me-2"></i>Send Notice/Announcement
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label class="form-label">Notice Title *</label>
+                                <InputText @bind-Value="NoticeModel.Title" class="form-control" 
+                                         placeholder="Enter notice title" />
+                                <ValidationMessage For="@(() => NoticeModel.Title)" />
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Priority</label>
+                                <InputSelect @bind-Value="NoticeModel.Priority" class="form-select">
+                                    <option value="Low">Low</option>
+                                    <option value="Normal">Normal</option>
+                                    <option value="High">High</option>
+                                    <option value="Urgent">Urgent</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Notice Type</label>
+                                <InputSelect @bind-Value="NoticeModel.Type" class="form-select">
+                                    <option value="General">General</option>
+                                    <option value="Assignment">Assignment</option>
+                                    <option value="Exam">Exam</option>
+                                    <option value="Holiday">Holiday</option>
+                                    <option value="Emergency">Emergency</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Target Course</label>
+                                <InputSelect @bind-Value="NoticeModel.CourseId" @bind-Value:after="OnCourseChanged" class="form-select">
+                                    <option value="">All My Courses</option>
+                                    @foreach (var course in TeacherCourses)
+                                    {
+                                        <option value="@course.Id">@course.Code - @course.Name</option>
+                                    }
+                                </InputSelect>
+                                <small class="text-muted">Select specific course or leave blank for all courses</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Notice Content *</label>
+                        <InputTextArea @bind-Value="NoticeModel.Content" class="form-control" rows="5" 
+                                     placeholder="Enter your notice content here..." />
+                        <ValidationMessage For="@(() => NoticeModel.Content)" />
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Expiry Date (Optional)</label>
+                                <InputDate @bind-Value="NoticeModel.ExpiryDate" class="form-control" />
+                                <small class="text-muted">Leave blank for no expiry</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check mt-4">
+                                    <InputCheckbox @bind-Value="NoticeModel.IsPublished" class="form-check-input" id="publishNow" />
+                                    <label class="form-check-label" for="publishNow">
+                                        Publish Immediately
+                                    </label>
+                                </div>
+                                <small class="text-muted">Students will be notified when published</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(NoticeModel.CourseId))
+                    {
+                        var selectedCourse = TeacherCourses.FirstOrDefault(c => c.Id == NoticeModel.CourseId);
+                        if (selectedCourse != null)
+                        {
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                <strong>Recipients:</strong> @selectedCourse.EnrolledStudents students in @selectedCourse.Code - @selectedCourse.Name
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Recipients:</strong> @TeacherCourses.Sum(c => c.EnrolledStudents) students across all your courses
+                        </div>
+                    }
+
+                    <!-- Priority styling preview -->
+                    <div class="mb-3">
+                        <label class="form-label">Notice Preview:</label>
+                        <div class="card">
+                            <div class="card-header bg-@GetPriorityColor() text-white">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <i class="bi bi-@GetPriorityIcon() me-2"></i>
+                                        @NoticeModel.Type - @NoticeModel.Priority Priority
+                                    </span>
+                                    <small>@DateTime.Now.ToString("MMM dd, yyyy")</small>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <h6 class="card-title">@(string.IsNullOrEmpty(NoticeModel.Title) ? "Notice Title" : NoticeModel.Title)</h6>
+                                <p class="card-text">@(string.IsNullOrEmpty(NoticeModel.Content) ? "Notice content will appear here..." : NoticeModel.Content)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-@GetPriorityColor()" disabled="@IsSubmitting">
+                        @if (IsSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        @if (NoticeModel.IsPublished)
+                        {
+                            <text><i class="bi bi-send me-1"></i>Publish Notice</text>
+                        }
+                        else
+                        {
+                            <text><i class="bi bi-save me-1"></i>Save as Draft</text>
+                        }
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string ModalId { get; set; } = "sendNoticeModal";
+    [Parameter] public List<TeacherCourse> TeacherCourses { get; set; } = new();
+    [Parameter] public EventCallback<NoticeModel> OnNoticeSent { get; set; }
+    [Parameter] public EventCallback OnNoticeCreated { get; set; }
+
+    private NoticeModel NoticeModel = new();
+    private bool IsSubmitting = false;
+    
+    public async Task ShowAsync(NoticeModel? existingNotice = null)
+    {
+        if (existingNotice != null)
+        {
+            NoticeModel = existingNotice;
+        }
+        else
+        {
+            NoticeModel = new NoticeModel
+            {
+                Priority = "Normal",
+                Type = "General",
+                IsPublished = true
+            };
+        }
+        await JSRuntime.InvokeVoidAsync("showModal", ModalId);
+    }
+
+    private void OnCourseChanged()
+    {
+        var selectedCourse = TeacherCourses.FirstOrDefault(c => c.Id == NoticeModel.CourseId);
+        if (selectedCourse != null)
+        {
+            NoticeModel.CourseName = selectedCourse.Name;
+            NoticeModel.CourseCode = selectedCourse.Code;
+        }
+        else
+        {
+            NoticeModel.CourseName = "";
+            NoticeModel.CourseCode = "";
+        }
+    }    private string GetPriorityColor()
+    {
+        return NoticeModel.Priority switch
+        {
+            "Low" => "secondary",
+            "Normal" => "primary",
+            "High" => "warning",
+            "Urgent" => "danger",
+            _ => "primary"
+        };
+    }
+
+    private string GetPriorityIcon()
+    {
+        return NoticeModel.Priority switch
+        {
+            "Low" => "info-circle",
+            "Normal" => "bell",
+            "High" => "exclamation-triangle",
+            "Urgent" => "exclamation-diamond",
+            _ => "bell"
+        };
+    }
+    
+    private async Task HandleSubmit()
+    {
+        IsSubmitting = true;
+        try
+        {
+            await OnNoticeSent.InvokeAsync(NoticeModel);
+            await OnNoticeCreated.InvokeAsync();
+            await JSRuntime.InvokeVoidAsync("hideModal", ModalId);
+            NoticeModel = new NoticeModel();
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+}

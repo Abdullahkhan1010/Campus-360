@@ -1,0 +1,761 @@
+@using Campus360.Models
+@using Campus360.Services
+@using Microsoft.JSInterop
+@inject FileManagementService FileService
+@inject UserContextService UserContext
+@inject IJSRuntime JSRuntime
+
+<div class="file-browser">
+    <!-- Search and Filter Header -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" class="form-control" placeholder="Search files..." 
+                               @bind="searchTerm" @oninput="OnSearchChanged" />
+                        @if (!string.IsNullOrEmpty(searchTerm))
+                        {
+                            <button class="btn btn-outline-secondary" type="button" @onclick="ClearSearch">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        }
+                    </div>
+                </div>
+                <div class="col-md-6">                    <div class="d-flex gap-2">                        <select class="form-select" @onchange="OnFileTypeChanged">
+                            <option value="">All File Types</option>
+                            <option value="@FileType.Assignment">📝 Assignments</option>
+                            <option value="@FileType.Notes">📚 Notes</option>
+                            <option value="@FileType.Result">📊 Results</option>
+                            <option value="@FileType.Notice">📢 Notices</option>
+                            <option value="@FileType.StudyMaterial">📖 Study Material</option>
+                            <option value="@FileType.Syllabus">📋 Syllabus</option>
+                            <option value="@FileType.Timetable">🗓️ Timetable</option>
+                            <option value="@FileType.Circular">📃 Circular</option>
+                        </select>
+                        <button class="btn btn-outline-primary" @onclick="ToggleAdvancedFilters">
+                            <i class="fas fa-filter"></i>
+                        </button>
+                        @if (ShowUploadButton)
+                        {
+                            <button class="btn btn-primary" @onclick="ShowUploadModal">
+                                <i class="fas fa-upload me-2"></i>Upload
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Advanced Filters -->
+            @if (showAdvancedFilters)
+            {
+                <div class="row mt-3 pt-3 border-top">
+                    <div class="col-md-3">
+                        <label class="form-label">Course</label>                        <select class="form-select" @onchange="OnCourseFilterChanged">
+                            <option value="">All Courses</option>
+                            @foreach (var course in availableCourses)
+                            {
+                                <option value="@course.Id">@course.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Department</label>                        <select class="form-select" @onchange="OnDepartmentFilterChanged">
+                            <option value="">All Departments</option>
+                            @foreach (var dept in availableDepartments)
+                            {
+                                <option value="@dept.Id">@dept.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Upload Date</label>                        <select class="form-select" @onchange="OnDateFilterChanged">
+                            <option value="">All Time</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Sort By</label>                        <select class="form-select" @onchange="OnSortByChanged">
+                            <option value="UploadDate">Upload Date</option>
+                            <option value="FileName">File Name</option>
+                            <option value="FileSize">File Size</option>
+                            <option value="DownloadCount">Downloads</option>
+                        </select>
+                    </div>
+                </div>                @if (dateFilter == "custom")
+                {
+                    <div class="row mt-3">                        <div class="col-md-6">                        <label class="form-label">From Date</label>
+                            <input type="date" class="form-control" value="@(customFromDate?.ToString("yyyy-MM-dd"))" @onchange="OnCustomFromDateChanged" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">To Date</label>
+                            <input type="date" class="form-control" value="@(customToDate?.ToString("yyyy-MM-dd"))" @onchange="OnCustomToDateChanged" />
+                        </div>
+                    </div>
+                }
+
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <button class="btn btn-outline-secondary btn-sm me-2" @onclick="ClearAllFilters">
+                            <i class="fas fa-times me-1"></i>Clear All
+                        </button>                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" @bind="filterModel.OnlyFeatured" @bind:event="onchange" />
+                            <label class="form-check-label">Featured only</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" @bind="filterModel.SortDescending" @bind:event="onchange" />
+                            <label class="form-check-label">Descending order</label>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>    <!-- File Stats -->
+    @if (fileStatistics != null)
+    {
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body text-center">
+                        <i class="fas fa-file fs-2 mb-2"></i>
+                        <h4>@fileStatistics.TotalFiles</h4>
+                        <small>Total Files</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center">
+                        <i class="fas fa-download fs-2 mb-2"></i>
+                        <h4>@fileStatistics.TotalDownloads</h4>
+                        <small>Total Downloads</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">                    <div class="card bg-info text-white">
+                        <div class="card-body text-center">
+                            <i class="fas fa-database fs-2 mb-2"></i>
+                            <h4>@fileStatistics.TotalStorageFormatted</h4>
+                            <small>Total Size</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body text-center">
+                            <i class="fas fa-star fs-2 mb-2"></i>
+                            <h4>@fileStatistics.FilesToday</h4>
+                            <small>New Files Today</small>
+                        </div>
+                    </div>
+            </div>
+        </div>
+    }
+
+    <!-- Loading State -->
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <h5 class="mt-3">Loading files...</h5>
+        </div>
+    }
+    <!-- File List -->
+    else if (filteredFiles.Any())
+    {
+        <div class="row">
+            @foreach (var file in filteredFiles)
+            {
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card file-card h-100" @onclick="() => ViewFile(file.Id)">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start">
+                                <div class="file-icon me-3">
+                                    <i class="@GetFileIcon(file.FileType) fs-2 text-@GetFileTypeColor(file.FileType)"></i>
+                                </div>
+                                <div class="flex-grow-1 min-width-0">
+                                    <h6 class="card-title mb-1 text-truncate" title="@file.OriginalFileName">
+                                        @file.OriginalFileName
+                                    </h6>
+                                    <p class="card-text text-muted small mb-2">
+                                        @GetFileTypeDisplay(file.FileType)
+                                        @if (file.IsFeatured)
+                                        {
+                                            <i class="fas fa-star text-warning ms-1"></i>
+                                        }
+                                    </p>
+                                    
+                                    <!-- File metadata -->
+                                    <div class="file-metadata">
+                                        <small class="text-muted d-block">
+                                            <i class="fas fa-user me-1"></i>@file.UploaderName
+                                        </small>
+                                        <small class="text-muted d-block">
+                                            <i class="fas fa-calendar me-1"></i>@file.UploadDate.ToString("MMM dd, yyyy")
+                                        </small>
+                                        <small class="text-muted d-block">
+                                            <i class="fas fa-database me-1"></i>@file.FileSizeFormatted
+                                        </small>
+                                        @if (!string.IsNullOrEmpty(file.CourseName))
+                                        {
+                                            <small class="text-muted d-block">
+                                                <i class="fas fa-book me-1"></i>@file.CourseName
+                                            </small>
+                                        }
+                                    </div>
+
+                                    <!-- Special indicators -->
+                                    <div class="mt-2">
+                                        @if (file.FileType == FileType.Assignment && file.DueDate.HasValue)
+                                        {
+                                            <span class="badge bg-@(file.IsOverdue ? "danger" : "primary") me-1">
+                                                <i class="fas fa-calendar-alt me-1"></i>
+                                                Due: @file.DueDate.Value.ToString("MMM dd")
+                                            </span>
+                                        }
+                                        @if (file.FileType == FileType.Notice && file.ExpiryDate.HasValue)
+                                        {
+                                            <span class="badge bg-@(file.IsExpired ? "secondary" : GetNoticePriorityBadge(file.Priority)) me-1">
+                                                @GetPriorityIcon(file.Priority) @file.Priority
+                                            </span>
+                                        }
+                                        @if (file.DownloadCount > 0)
+                                        {
+                                            <span class="badge bg-secondary me-1">
+                                                <i class="fas fa-download me-1"></i>@file.DownloadCount
+                                            </span>
+                                        }
+                                    </div>
+
+                                    <!-- Tags -->
+                                    @if (file.Tags.Any())
+                                    {
+                                        <div class="mt-2">
+                                            @foreach (var tag in file.Tags.Take(3))
+                                            {
+                                                <span class="badge bg-light text-dark me-1">@tag</span>
+                                            }
+                                            @if (file.Tags.Count > 3)
+                                            {
+                                                <span class="text-muted small">+@(file.Tags.Count - 3) more</span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent border-0 pt-0">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <button class="btn btn-sm btn-outline-primary" @onclick:stopPropagation="true" @onclick="() => DownloadFile(file.Id)">
+                                    <i class="fas fa-download me-1"></i>Download
+                                </button>
+                                <button class="btn btn-sm btn-outline-info" @onclick:stopPropagation="true" @onclick="() => ViewFile(file.Id)">
+                                    <i class="fas fa-eye me-1"></i>View
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Pagination -->
+        @if (totalPages > 1)
+        {
+            <nav class="mt-4">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(currentPage - 1)" disabled="@(currentPage == 1)">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                    </li>
+                    
+                    @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                    {
+                        var pageNum = i;
+                        <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                            <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                        </li>
+                    }
+                    
+                    <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(currentPage + 1)" disabled="@(currentPage == totalPages)">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        }
+    }
+    else
+    {
+        <div class="text-center py-5">
+            <i class="fas fa-folder-open fs-1 text-muted mb-3"></i>
+            <h5>No files found</h5>
+            <p class="text-muted">
+                @if (HasActiveFilters())
+                {
+                    <span>No files match your current filters. Try adjusting your search criteria.</span>
+                    <br />
+                    <button class="btn btn-outline-primary mt-2" @onclick="ClearAllFilters">
+                        <i class="fas fa-times me-1"></i>Clear Filters
+                    </button>
+                }
+                else
+                {
+                    <span>No files have been uploaded yet.</span>
+                }
+            </p>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<TeacherCourse> AvailableCourses { get; set; } = new();
+    [Parameter] public List<Department> AvailableDepartments { get; set; } = new();
+    [Parameter] public EventCallback OnUploadRequested { get; set; }
+    [Parameter] public EventCallback<string> OnFileViewed { get; set; }    [Parameter] public EventCallback<string> OnFileDownloaded { get; set; }
+    [Parameter] public IEnumerable<FileDocument>? Files { get; set; }    [Parameter] public bool AllowDelete { get; set; }
+    [Parameter] public bool AllowEdit { get; set; }
+    [Parameter] public bool ShowUploadButton { get; set; }
+    [Parameter] public EventCallback<string> OnFileSelected { get; set; }
+    [Parameter] public EventCallback<string> OnFileDeleted { get; set; }
+    [Parameter] public EventCallback OnFileUploaded { get; set; }
+    [Parameter] public bool ShowStudentView { get; set; }
+
+    private List<FileDocument> allFiles = new();
+    private List<FileDocument> filteredFiles = new();
+    private FileStatistics? fileStatistics;
+    private FileFilterModel filterModel = new();
+    
+    // Collections for dropdown options
+    private List<TeacherCourse> availableCourses = new();
+    private List<Department> availableDepartments = new();
+    
+    private bool isLoading = true;
+    private bool showAdvancedFilters = false;
+    
+    private string searchTerm = string.Empty;
+    private string selectedFileType = string.Empty;
+    private string dateFilter = string.Empty;
+    private DateTime? customFromDate;
+    private DateTime? customToDate;
+    
+    private int currentPage = 1;
+    private int pageSize = 12;
+    private int totalPages = 1;
+    
+    private Timer? searchTimer;    protected override async Task OnInitializedAsync()
+    {
+        // Initialize collections from parameters
+        availableCourses = AvailableCourses;
+        availableDepartments = AvailableDepartments;
+        
+        await LoadFiles();
+    }
+
+    private async Task LoadFiles()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var currentUser = await UserContext.GetCurrentUserAsync();
+            if (currentUser != null)
+            {
+                allFiles = await FileService.GetUserAccessibleFilesAsync(currentUser.Id, currentUser.Role);
+                fileStatistics = await FileService.GetFileStatisticsAsync(currentUser.Id, currentUser.Role);
+                ApplyFiltersInternal();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Handle error
+            Console.WriteLine($"Error loading files: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnSearchChanged(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? string.Empty;
+        
+        // Debounce search
+        searchTimer?.Dispose();
+        searchTimer = new Timer(async _ =>
+        {
+            await InvokeAsync(() =>
+            {
+                ApplyFiltersInternal();
+                StateHasChanged();
+            });
+        }, null, 500, Timeout.Infinite);
+    }
+
+    private async Task ApplyFilters()
+    {
+        await Task.Run(ApplyFiltersInternal);
+        StateHasChanged();
+    }
+
+    private void ApplyFiltersInternal()
+    {
+        var query = allFiles.AsEnumerable();
+
+        // Apply search term
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var search = searchTerm.ToLower();
+            query = query.Where(f => 
+                f.OriginalFileName.ToLower().Contains(search) ||
+                f.Description.ToLower().Contains(search) ||
+                f.Tags.Any(t => t.ToLower().Contains(search)) ||
+                f.UploaderName.ToLower().Contains(search) ||
+                f.CourseName.ToLower().Contains(search));
+        }
+
+        // Apply file type filter
+        if (!string.IsNullOrEmpty(selectedFileType) && Enum.TryParse<FileType>(selectedFileType, out var fileType))
+        {
+            query = query.Where(f => f.FileType == fileType);
+        }
+
+        // Apply course filter
+        if (!string.IsNullOrEmpty(filterModel.CourseId))
+        {
+            query = query.Where(f => f.CourseId == filterModel.CourseId);
+        }
+
+        // Apply department filter
+        if (!string.IsNullOrEmpty(filterModel.DepartmentId))
+        {
+            query = query.Where(f => f.DepartmentId == filterModel.DepartmentId);
+        }
+
+        // Apply date filters
+        ApplyDateFilter(ref query);
+
+        // Apply featured filter
+        if (filterModel.OnlyFeatured)
+        {
+            query = query.Where(f => f.IsFeatured);
+        }
+
+        // Apply sorting
+        query = filterModel.SortBy?.ToLower() switch
+        {
+            "filename" => filterModel.SortDescending ? 
+                query.OrderByDescending(f => f.OriginalFileName) : 
+                query.OrderBy(f => f.OriginalFileName),
+            "filesize" => filterModel.SortDescending ? 
+                query.OrderByDescending(f => f.FileSize) : 
+                query.OrderBy(f => f.FileSize),
+            "downloadcount" => filterModel.SortDescending ? 
+                query.OrderByDescending(f => f.DownloadCount) : 
+                query.OrderBy(f => f.DownloadCount),
+            _ => filterModel.SortDescending ? 
+                query.OrderByDescending(f => f.UploadDate) : 
+                query.OrderBy(f => f.UploadDate)
+        };
+
+        var totalFiles = query.Count();
+        totalPages = (int)Math.Ceiling((double)totalFiles / pageSize);
+        currentPage = Math.Min(currentPage, Math.Max(1, totalPages));
+
+        filteredFiles = query
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+    }
+
+    private void ApplyDateFilter(ref IEnumerable<FileDocument> query)
+    {
+        switch (dateFilter)
+        {
+            case "today":
+                query = query.Where(f => f.UploadDate.Date == DateTime.Today);
+                break;
+            case "week":
+                var weekStart = DateTime.Today.AddDays(-(int)DateTime.Today.DayOfWeek);
+                query = query.Where(f => f.UploadDate.Date >= weekStart);
+                break;
+            case "month":
+                var monthStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+                query = query.Where(f => f.UploadDate.Date >= monthStart);
+                break;
+            case "custom":
+                if (customFromDate.HasValue)
+                    query = query.Where(f => f.UploadDate.Date >= customFromDate.Value.Date);
+                if (customToDate.HasValue)
+                    query = query.Where(f => f.UploadDate.Date <= customToDate.Value.Date);
+                break;
+        }    }
+
+    private void ToggleAdvancedFilters()
+    {
+        showAdvancedFilters = !showAdvancedFilters;
+    }
+
+    private async Task ClearSearch()
+    {
+        searchTerm = string.Empty;
+        await ApplyFilters();
+    }
+
+    private async Task ClearAllFilters()
+    {
+        searchTerm = string.Empty;
+        selectedFileType = string.Empty;
+        dateFilter = string.Empty;
+        customFromDate = null;
+        customToDate = null;
+        filterModel = new FileFilterModel { SortBy = "UploadDate", SortDescending = true };
+        currentPage = 1;
+        await ApplyFilters();
+    }
+
+    private bool HasActiveFilters()
+    {
+        return !string.IsNullOrEmpty(searchTerm) ||
+               !string.IsNullOrEmpty(selectedFileType) ||
+               !string.IsNullOrEmpty(filterModel.CourseId) ||
+               !string.IsNullOrEmpty(filterModel.DepartmentId) ||
+               !string.IsNullOrEmpty(dateFilter) ||
+               filterModel.OnlyFeatured;
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            await ApplyFilters();
+        }
+    }
+
+    private async Task ViewFile(string fileId)
+    {
+        await OnFileViewed.InvokeAsync(fileId);
+    }
+
+    private async Task DownloadFile(string fileId)
+    {
+        await OnFileDownloaded.InvokeAsync(fileId);
+    }
+
+    private async Task ShowUploadModal()
+    {
+        await OnUploadRequested.InvokeAsync();
+    }
+
+    private string GetFileIcon(FileType fileType)
+    {
+        return fileType switch
+        {
+            FileType.Assignment => "fas fa-tasks",
+            FileType.Notes => "fas fa-sticky-note",
+            FileType.Result => "fas fa-chart-bar",
+            FileType.Notice => "fas fa-bullhorn",
+            FileType.StudyMaterial => "fas fa-book",
+            FileType.Syllabus => "fas fa-list-alt",
+            FileType.Timetable => "fas fa-calendar",
+            FileType.Circular => "fas fa-info-circle",
+            _ => "fas fa-file-alt"
+        };
+    }
+
+    private string GetFileTypeColor(FileType fileType)
+    {
+        return fileType switch
+        {
+            FileType.Assignment => "primary",
+            FileType.Notes => "info",
+            FileType.Result => "success",
+            FileType.Notice => "warning",
+            FileType.StudyMaterial => "secondary",
+            FileType.Syllabus => "dark",
+            FileType.Timetable => "info",
+            FileType.Circular => "muted",
+            _ => "secondary"
+        };
+    }
+
+    private string GetFileTypeDisplay(FileType fileType)
+    {
+        return fileType switch
+        {
+            FileType.Assignment => "Assignment",
+            FileType.Notes => "Lecture Notes",
+            FileType.Result => "Results",
+            FileType.Notice => "Notice",
+            FileType.StudyMaterial => "Study Material",
+            FileType.Syllabus => "Syllabus",
+            FileType.Timetable => "Timetable",
+            FileType.Circular => "Circular",
+            _ => "Document"
+        };
+    }
+
+    private string GetNoticePriorityBadge(NoticePriority priority)
+    {
+        return priority switch
+        {
+            NoticePriority.Urgent => "danger",
+            NoticePriority.High => "warning",
+            NoticePriority.Normal => "info",
+            NoticePriority.Low => "secondary",
+            _ => "info"
+        };
+    }
+
+    private string GetPriorityIcon(NoticePriority priority)
+    {
+        return priority switch
+        {
+            NoticePriority.Urgent => "🔴",
+            NoticePriority.High => "🟠",
+            NoticePriority.Normal => "🟡",
+            NoticePriority.Low => "🟢",
+            _ => "🟡"
+        };
+    }    private string FormatFileSize(long bytes)
+    {
+        string[] suffixes = { "B", "KB", "MB", "GB" };
+        int counter = 0;
+        decimal number = bytes;
+        while (Math.Round(number / 1024) >= 1)
+        {
+            number /= 1024;
+            counter++;
+        }
+        return $"{number:n1} {suffixes[counter]}";
+    }
+
+    // Change event handlers to replace removed @onchange attributes
+    private async Task OnFileTypeChanged(ChangeEventArgs e)
+    {
+        selectedFileType = e.Value?.ToString() ?? string.Empty;
+        await ApplyFilters();
+    }
+
+    private async Task OnCourseFilterChanged(ChangeEventArgs e)
+    {
+        filterModel.CourseId = e.Value?.ToString();
+        await ApplyFilters();
+    }
+
+    private async Task OnDepartmentFilterChanged(ChangeEventArgs e)
+    {
+        filterModel.DepartmentId = e.Value?.ToString();
+        await ApplyFilters();
+    }
+
+    private async Task OnDateFilterChanged(ChangeEventArgs e)
+    {
+        dateFilter = e.Value?.ToString() ?? string.Empty;
+        customFromDate = null;
+        customToDate = null;
+        await ApplyFilters();
+    }
+
+    private async Task OnSortByChanged(ChangeEventArgs e)
+    {
+        filterModel.SortBy = e.Value?.ToString() ?? "UploadDate";
+        await ApplyFilters();
+    }
+
+    private async Task OnCustomDateChanged()
+    {
+        await ApplyFilters();
+    }
+
+    private async Task OnCheckboxChanged()
+    {
+        await ApplyFilters();
+    }
+
+    public void Dispose()
+    {
+        searchTimer?.Dispose();
+    }
+}
+
+<style>
+.file-browser {
+    min-height: 500px;
+}
+
+.file-card {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid #dee2e6;
+}
+
+.file-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border-color: #0d6efd;
+}
+
+.file-icon {
+    min-width: 48px;
+}
+
+.file-metadata {
+    font-size: 0.85em;
+}
+
+.page-link {
+    border: none;
+    color: #6c757d;
+}
+
+.page-link:hover, .page-link:focus {
+    color: #0d6efd;
+    background-color: #e9ecef;
+}
+
+.page-item.active .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.badge {
+    font-size: 0.7em;
+}
+
+.text-truncate {
+    max-width: 100%;
+}
+
+.min-width-0 {
+    min-width: 0;
+}
+</style>
+
+@code {
+    private async Task OnCustomFromDateChanged(ChangeEventArgs e)
+    {
+        customFromDate = DateTime.TryParse(e.Value?.ToString(), out var date) ? date : null;
+        await ApplyFilters();
+    }
+    
+    private async Task OnCustomToDateChanged(ChangeEventArgs e)
+    {
+        customToDate = DateTime.TryParse(e.Value?.ToString(), out var date) ? date : null;
+        await ApplyFilters();
+    }
+}

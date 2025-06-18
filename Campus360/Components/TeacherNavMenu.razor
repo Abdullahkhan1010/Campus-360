@@ -1,0 +1,61 @@
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/teacher/dashboard">Campus360 Teacher</a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <nav class="flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/teacher/dashboard" Match="NavLinkMatch.All">
+                <span class="bi bi-speedometer2" aria-hidden="true"></span> Dashboard
+            </NavLink>
+        </div>        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/teacher/courses">
+                <span class="bi bi-book" aria-hidden="true"></span> My Courses
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/teacher/attendance">
+                <span class="bi bi-check-circle" aria-hidden="true"></span> Mark Attendance
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/teacher/results">
+                <span class="bi bi-trophy" aria-hidden="true"></span> Upload Results
+            </NavLink>
+        </div>        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/teacher/notices">
+                <span class="bi bi-megaphone" aria-hidden="true"></span> Send Notices
+            </NavLink>
+        </div>        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/teacher/calendar">
+                <span class="bi bi-calendar3" aria-hidden="true"></span> Calendar
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/teacher/file-center">
+                <span class="bi bi-folder" aria-hidden="true"></span> File Center
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/teacher/logs">
+                <span class="bi bi-journal-text" aria-hidden="true"></span> Automation Logs
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+}

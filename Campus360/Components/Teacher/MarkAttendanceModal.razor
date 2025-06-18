@@ -1,0 +1,275 @@
+@using Campus360.Models
+@inject IJSRuntime JSRuntime
+
+<div class="modal fade" id="@ModalId" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <EditForm Model="AttendanceModel" OnValidSubmit="HandleSubmit">
+                <DataAnnotationsValidator />
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-check-square me-2"></i>Mark Attendance
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Course *</label>
+                                <InputSelect @bind-Value="AttendanceModel.CourseId" @bind-Value:after="OnCourseChanged" class="form-select">
+                                    <option value="">-- Select Course --</option>
+                                    @foreach (var course in TeacherCourses)
+                                    {
+                                        <option value="@course.Id">@course.Code - @course.Name</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => AttendanceModel.CourseId)" />
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label class="form-label">Class Date *</label>
+                                <InputDate @bind-Value="AttendanceModel.ClassDate" class="form-control" />
+                                <ValidationMessage For="@(() => AttendanceModel.ClassDate)" />
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label class="form-label">Class Type *</label>
+                                <InputSelect @bind-Value="AttendanceModel.ClassType" class="form-select">
+                                    <option value="Lecture">Lecture</option>
+                                    <option value="Lab">Lab</option>
+                                    <option value="Tutorial">Tutorial</option>
+                                    <option value="Seminar">Seminar</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="mb-3">
+                                <label class="form-label">Class Topic</label>
+                                <InputText @bind-Value="AttendanceModel.Topic" class="form-control" 
+                                         placeholder="Enter today's class topic (optional)" />
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(AttendanceModel.CourseId) && CourseStudents.Any())
+                    {
+                        <div class="attendance-section">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6>Students Attendance (@CourseStudents.Count students)</h6>
+                                <div>
+                                    <button type="button" class="btn btn-sm btn-success me-2" @onclick="MarkAllPresent">
+                                        <i class="bi bi-check-all me-1"></i>Mark All Present
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-warning" @onclick="MarkAllAbsent">
+                                        <i class="bi bi-x-circle me-1"></i>Mark All Absent
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Student ID</th>
+                                            <th>Student Name</th>
+                                            <th>Present</th>
+                                            <th>Absent</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @for (int i = 0; i < AttendanceModel.Students.Count; i++)
+                                        {
+                                            var index = i; // Capture for lambda
+                                            <tr class="@(AttendanceModel.Students[index].IsPresent ? "table-success" : "table-warning")">
+                                                <td>
+                                                    <strong>@CourseStudents[index].StudentId</strong>
+                                                </td>
+                                                <td>
+                                                    @CourseStudents[index].FullName
+                                                    <br><small class="text-muted">@CourseStudents[index].Email</small>
+                                                </td>
+                                                <td>
+                                                    <div class="form-check">
+                                                        <input type="radio" class="form-check-input" 
+                                                               name="attendance_@index" 
+                                                               checked="@AttendanceModel.Students[index].IsPresent"
+                                                               @onchange="@(e => UpdateAttendance(index, true))" />
+                                                        <label class="form-check-label text-success">Present</label>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="form-check">
+                                                        <input type="radio" class="form-check-input" 
+                                                               name="attendance_@index" 
+                                                               checked="@(!AttendanceModel.Students[index].IsPresent)"
+                                                               @onchange="@(e => UpdateAttendance(index, false))" />
+                                                        <label class="form-check-label text-danger">Absent</label>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="form-control form-control-sm" 
+                                                           placeholder="Remarks (optional)"
+                                                           @bind="AttendanceModel.Students[index].Remarks" />
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="mt-3">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="card bg-success text-white">
+                                            <div class="card-body py-2">
+                                                <h5>@AttendanceModel.Students.Count(s => s.IsPresent)</h5>
+                                                <small>Present</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card bg-warning text-white">
+                                            <div class="card-body py-2">
+                                                <h5>@AttendanceModel.Students.Count(s => !s.IsPresent)</h5>
+                                                <small>Absent</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card bg-info text-white">
+                                            <div class="card-body py-2">
+                                                <h5>@(AttendanceModel.Students.Any() ? (AttendanceModel.Students.Count(s => s.IsPresent) * 100 / AttendanceModel.Students.Count) : 0)%</h5>
+                                                <small>Attendance Rate</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>                    }
+                    else if (!string.IsNullOrEmpty(AttendanceModel.CourseId) || IsLoadingStudents)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading students...</span>
+                            </div>
+                            <p class="mt-2">@(IsLoadingStudents ? "Loading course students..." : "No students found for this course.")</p>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" disabled="@(IsSubmitting || string.IsNullOrEmpty(AttendanceModel.CourseId))">
+                        @if (IsSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        Save Attendance
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string ModalId { get; set; } = "markAttendanceModal";
+    [Parameter] public List<TeacherCourse> TeacherCourses { get; set; } = new();
+    [Parameter] public EventCallback<TeacherMarkAttendanceModel> OnAttendanceMarked { get; set; }
+
+    private TeacherMarkAttendanceModel AttendanceModel = new();
+    private List<CourseStudent> CourseStudents = new();
+    private bool IsSubmitting = false;
+    private bool IsLoadingStudents = false;
+    
+    public async Task ShowAsync(string? courseId = null)
+    {
+        AttendanceModel = new TeacherMarkAttendanceModel
+        {
+            ClassDate = DateTime.Now,
+            ClassType = "Lecture",
+            CourseId = courseId ?? ""
+        };
+        CourseStudents.Clear();
+        await JSRuntime.InvokeVoidAsync("showModal", ModalId);
+    }
+
+    private async Task OnCourseChanged()
+    {
+        if (!string.IsNullOrEmpty(AttendanceModel.CourseId))
+        {
+            IsLoadingStudents = true;
+            // In real implementation, load students from service
+            await Task.Delay(500); // Simulate loading
+
+            // Mock students for demo
+            CourseStudents = new List<CourseStudent>
+            {
+                new CourseStudent { Id = "s1", FullName = "Alice Johnson", Email = "alice@example.com", StudentId = "CS2021001" },
+                new CourseStudent { Id = "s2", FullName = "Bob Smith", Email = "bob@example.com", StudentId = "CS2021002" },
+                new CourseStudent { Id = "s3", FullName = "Carol Wilson", Email = "carol@example.com", StudentId = "CS2021003" },
+                new CourseStudent { Id = "s4", FullName = "David Brown", Email = "david@example.com", StudentId = "CS2021004" },
+                new CourseStudent { Id = "s5", FullName = "Eva Davis", Email = "eva@example.com", StudentId = "CS2021005" }
+            };
+
+            AttendanceModel.Students = CourseStudents.Select(s => new StudentAttendanceMarkModel
+            {
+                StudentId = s.Id,
+                StudentName = s.FullName,
+                IsPresent = true // Default to present
+            }).ToList();
+
+            IsLoadingStudents = false;
+            StateHasChanged();
+        }
+    }
+
+    private void UpdateAttendance(int index, bool isPresent)
+    {
+        if (index >= 0 && index < AttendanceModel.Students.Count)
+        {
+            AttendanceModel.Students[index].IsPresent = isPresent;
+            StateHasChanged();
+        }
+    }
+
+    private void MarkAllPresent()
+    {
+        foreach (var student in AttendanceModel.Students)
+        {
+            student.IsPresent = true;
+        }
+        StateHasChanged();
+    }
+
+    private void MarkAllAbsent()
+    {
+        foreach (var student in AttendanceModel.Students)
+        {
+            student.IsPresent = false;
+        }
+        StateHasChanged();
+    }
+
+    private async Task HandleSubmit()
+    {
+        IsSubmitting = true;
+        try
+        {
+            await OnAttendanceMarked.InvokeAsync(AttendanceModel);
+            await JSRuntime.InvokeVoidAsync("hideModal", ModalId);
+            AttendanceModel = new TeacherMarkAttendanceModel();
+            CourseStudents.Clear();
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+}

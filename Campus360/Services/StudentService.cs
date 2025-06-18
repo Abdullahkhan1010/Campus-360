@@ -1,0 +1,882 @@
+using Campus360.Models;
+
+namespace Campus360.Services
+{
+    public class StudentService
+    {
+        private readonly HttpClient _httpClient;
+
+        // Mock data for demonstration - replace with Supabase calls later
+        private static List<StudentCourse> _studentCourses = new()
+        {
+            new StudentCourse 
+            { 
+                Id = "sc1", 
+                StudentId = "s1",
+                CourseId = "1",
+                CourseName = "Data Structures", 
+                CourseCode = "CS101",
+                TeacherId = "t1",
+                TeacherName = "Dr. John Smith",
+                DepartmentName = "Computer Science",
+                Semester = 3, 
+                CreditHours = 4, 
+                EnrollmentDate = DateTime.Now.AddDays(-60),
+                TotalClasses = 30,
+                AttendedClasses = 26,                AttendancePercentage = 86.7,
+                CurrentGrade = 3.3,
+                LetterGrade = "B+",
+                GPA = 3.3,
+                IsActive = true,
+                LastAttendanceDate = DateTime.Now.AddDays(-1),
+                NextClassDate = DateTime.Now.AddDays(1),
+                ClassSchedule = "Mon, Wed, Fri - 10:00 AM",
+                ClassRoom = "Room 201"
+            },
+            new StudentCourse 
+            { 
+                Id = "sc2", 
+                StudentId = "s1",
+                CourseId = "2",
+                CourseName = "Web Development", 
+                CourseCode = "IT201",
+                TeacherId = "t2",
+                TeacherName = "Prof. Sarah Johnson",
+                DepartmentName = "Information Technology",
+                Semester = 3, 
+                CreditHours = 3, 
+                EnrollmentDate = DateTime.Now.AddDays(-55),
+                TotalClasses = 25,
+                AttendedClasses = 23,                AttendancePercentage = 92.0,
+                CurrentGrade = 3.7,
+                LetterGrade = "A-",
+                GPA = 3.7,
+                IsActive = true,
+                LastAttendanceDate = DateTime.Now.AddDays(-2),
+                NextClassDate = DateTime.Now.AddDays(2),
+                ClassSchedule = "Tue, Thu - 2:00 PM",
+                ClassRoom = "Lab 105"
+            },
+            new StudentCourse 
+            { 
+                Id = "sc3", 
+                StudentId = "s1",
+                CourseId = "3",
+                CourseName = "Database Systems", 
+                CourseCode = "CS301",
+                TeacherId = "t1",
+                TeacherName = "Dr. John Smith",
+                DepartmentName = "Computer Science",
+                Semester = 3, 
+                CreditHours = 4, 
+                EnrollmentDate = DateTime.Now.AddDays(-50),
+                TotalClasses = 28,
+                AttendedClasses = 20,
+                AttendancePercentage = 71.4,                CurrentGrade = 2.3,
+                LetterGrade = "C+",
+                GPA = 2.3,
+                IsActive = true,
+                LastAttendanceDate = DateTime.Now.AddDays(-3),
+                NextClassDate = DateTime.Now.AddDays(1),
+                ClassSchedule = "Mon, Wed - 1:00 PM",
+                ClassRoom = "Room 303"
+            }
+        };
+
+        private static List<StudentAssignment> _studentAssignments = new()
+        {
+            new StudentAssignment
+            {
+                Id = "sa1",
+                AssignmentId = "a1",
+                StudentId = "s1",
+                Title = "Linked List Implementation",
+                Description = "Implement a doubly linked list with basic operations",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                TeacherName = "Dr. John Smith",
+                DueDate = DateTime.Now.AddDays(5),
+                MaxMarks = 100,
+                ObtainedMarks = null,
+                SubmissionStatus = "Pending",
+                SubmissionDate = null,
+                IsLateSubmission = false,
+                GradedDate = null,
+                Feedback = null,
+                AssignmentType = "Programming",
+                Priority = "High",
+                IsOverdue = false,
+                RemainingDays = 5,
+                AttachmentUrl = null,
+                CreatedAt = DateTime.Now.AddDays(-7)
+            },
+            new StudentAssignment
+            {
+                Id = "sa2",
+                AssignmentId = "a2",
+                StudentId = "s1",
+                Title = "HTML/CSS Portfolio",
+                Description = "Create a personal portfolio website using HTML and CSS",
+                CourseId = "2",
+                CourseName = "Web Development",
+                CourseCode = "IT201",
+                TeacherName = "Prof. Sarah Johnson",
+                DueDate = DateTime.Now.AddDays(10),
+                MaxMarks = 100,
+                ObtainedMarks = 87,
+                SubmissionStatus = "Graded",
+                SubmissionDate = DateTime.Now.AddDays(-3),
+                IsLateSubmission = false,
+                GradedDate = DateTime.Now.AddDays(-1),
+                Feedback = "Excellent work on the design and responsiveness!",
+                AssignmentType = "Project",
+                Priority = "Medium",
+                IsOverdue = false,
+                RemainingDays = 10,
+                AttachmentUrl = "/files/portfolio.zip",
+                CreatedAt = DateTime.Now.AddDays(-14)
+            },
+            new StudentAssignment
+            {
+                Id = "sa3",
+                AssignmentId = "a3",
+                StudentId = "s1",
+                Title = "Database Design Project",
+                Description = "Design a normalized database for library management system",
+                CourseId = "3",
+                CourseName = "Database Systems",
+                CourseCode = "CS301",
+                TeacherName = "Dr. John Smith",
+                DueDate = DateTime.Now.AddDays(-2),
+                MaxMarks = 100,
+                ObtainedMarks = null,
+                SubmissionStatus = "Overdue",
+                SubmissionDate = null,
+                IsLateSubmission = true,
+                GradedDate = null,
+                Feedback = null,
+                AssignmentType = "Design",
+                Priority = "Urgent",
+                IsOverdue = true,
+                RemainingDays = -2,
+                AttachmentUrl = null,
+                CreatedAt = DateTime.Now.AddDays(-21)
+            }
+        };
+
+        private static List<StudentAttendanceRecord> _attendanceRecords = new()
+        {
+            new StudentAttendanceRecord
+            {
+                Id = "ar1",
+                StudentId = "s1",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                ClassDate = DateTime.Now.AddDays(-1),
+                ClassType = "Lecture",
+                Topic = "Binary Trees",
+                Status = "Present",
+                CheckInTime = DateTime.Now.AddDays(-1).AddHours(10).AddMinutes(5),
+                CheckOutTime = DateTime.Now.AddDays(-1).AddHours(11).AddMinutes(50),
+                Duration = "1h 45m",
+                IsLate = true,
+                LateByMinutes = 5,
+                Remarks = "Late arrival",
+                CreatedAt = DateTime.Now.AddDays(-1)
+            },
+            new StudentAttendanceRecord
+            {
+                Id = "ar2",
+                StudentId = "s1",
+                CourseId = "2",
+                CourseName = "Web Development",
+                CourseCode = "IT201",
+                ClassDate = DateTime.Now.AddDays(-2),
+                ClassType = "Lab",
+                Topic = "CSS Flexbox",
+                Status = "Present",
+                CheckInTime = DateTime.Now.AddDays(-2).AddHours(14),
+                CheckOutTime = DateTime.Now.AddDays(-2).AddHours(17),
+                Duration = "3h 0m",
+                IsLate = false,
+                LateByMinutes = 0,
+                Remarks = "Full attendance",
+                CreatedAt = DateTime.Now.AddDays(-2)
+            },
+            new StudentAttendanceRecord
+            {
+                Id = "ar3",
+                StudentId = "s1",
+                CourseId = "3",
+                CourseName = "Database Systems",
+                CourseCode = "CS301",
+                ClassDate = DateTime.Now.AddDays(-3),
+                ClassType = "Lecture",
+                Topic = "Database Normalization",
+                Status = "Absent",
+                CheckInTime = null,
+                CheckOutTime = null,
+                Duration = null,
+                IsLate = false,
+                LateByMinutes = 0,
+                Remarks = "Medical leave",
+                CreatedAt = DateTime.Now.AddDays(-3)
+            }
+        };
+
+        private static List<StudentResult> _studentResults = new()
+        {
+            new StudentResult
+            {
+                Id = "sr1",
+                StudentId = "s1",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                ExamType = "Midterm",
+                ExamDate = DateTime.Now.AddDays(-10),
+                MaxMarks = 100,
+                ObtainedMarks = 85,
+                Percentage = 85.0,
+                LetterGrade = "B+",
+                GradePoint = 3.3,
+                Rank = 5,
+                TotalStudents = 45,
+                Status = "Published",
+                PublishedDate = DateTime.Now.AddDays(-8),
+                TeacherComments = "Good understanding of concepts, work on optimization",
+                SubjectAverage = 78.5,
+                IsImprovement = true,
+                PreviousMarks = 78,
+                CreatedAt = DateTime.Now.AddDays(-10)
+            },
+            new StudentResult
+            {
+                Id = "sr2",
+                StudentId = "s1",
+                CourseId = "2",
+                CourseName = "Web Development",
+                CourseCode = "IT201",
+                ExamType = "Assignment",
+                ExamDate = DateTime.Now.AddDays(-5),
+                MaxMarks = 100,
+                ObtainedMarks = 87,
+                Percentage = 87.0,
+                LetterGrade = "A-",
+                GradePoint = 3.7,
+                Rank = 3,
+                TotalStudents = 38,
+                Status = "Published",
+                PublishedDate = DateTime.Now.AddDays(-3),
+                TeacherComments = "Excellent work on the portfolio project!",
+                SubjectAverage = 82.1,
+                IsImprovement = true,
+                PreviousMarks = 83,
+                CreatedAt = DateTime.Now.AddDays(-5)
+            },
+            new StudentResult
+            {
+                Id = "sr3",
+                StudentId = "s1",
+                CourseId = "3",
+                CourseName = "Database Systems",
+                CourseCode = "CS301",
+                ExamType = "Quiz",
+                ExamDate = DateTime.Now.AddDays(-7),
+                MaxMarks = 50,
+                ObtainedMarks = 32,
+                Percentage = 64.0,
+                LetterGrade = "C",
+                GradePoint = 2.0,
+                Rank = 18,
+                TotalStudents = 32,
+                Status = "Published",
+                PublishedDate = DateTime.Now.AddDays(-6),
+                TeacherComments = "Need to focus more on SQL queries",
+                SubjectAverage = 35.8,
+                IsImprovement = false,
+                PreviousMarks = 38,
+                CreatedAt = DateTime.Now.AddDays(-7)
+            }
+        };
+
+        private static List<StudentNotice> _studentNotices = new()
+        {
+            new StudentNotice
+            {
+                Id = "sn1",
+                NoticeId = "n1",
+                StudentId = "s1",
+                Title = "Midterm Exam Schedule",
+                Content = "The midterm examination for Data Structures will be held on March 15, 2024, from 10:00 AM to 12:00 PM in Room 201.",
+                Type = "Exam",
+                Priority = "High",
+                SenderType = "Teacher",
+                SenderId = "t1",
+                SenderName = "Dr. John Smith",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                PublishedDate = DateTime.Now.AddDays(-3),
+                ExpiryDate = DateTime.Now.AddDays(15),
+                IsRead = false,
+                ReadDate = null,
+                IsUrgent = true,
+                HasAttachment = false,
+                AttachmentUrl = null,
+                DeliveryStatus = "Delivered",
+                CreatedAt = DateTime.Now.AddDays(-3)
+            },
+            new StudentNotice
+            {
+                Id = "sn2",
+                NoticeId = "n2",
+                StudentId = "s1",
+                Title = "Assignment Deadline Reminder",
+                Content = "Reminder: Your Linked List Implementation assignment is due in 5 days. Please submit before the deadline.",
+                Type = "Assignment",
+                Priority = "Medium",
+                SenderType = "System",
+                SenderId = "system",
+                SenderName = "Campus360 System",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                PublishedDate = DateTime.Now.AddHours(-2),
+                ExpiryDate = DateTime.Now.AddDays(5),
+                IsRead = false,
+                ReadDate = null,
+                IsUrgent = false,
+                HasAttachment = false,
+                AttachmentUrl = null,
+                DeliveryStatus = "Delivered",
+                CreatedAt = DateTime.Now.AddHours(-2)
+            },
+            new StudentNotice
+            {
+                Id = "sn3",
+                NoticeId = "n3",
+                StudentId = "s1",
+                Title = "Low Attendance Warning",
+                Content = "Your attendance in Database Systems has dropped to 71.4%. Please maintain at least 75% attendance to be eligible for exams.",
+                Type = "Alert",
+                Priority = "Urgent",
+                SenderType = "System",
+                SenderId = "system",
+                SenderName = "Campus360 System",
+                CourseId = "3",
+                CourseName = "Database Systems",
+                CourseCode = "CS301",
+                PublishedDate = DateTime.Now.AddHours(-6),
+                ExpiryDate = null,
+                IsRead = true,
+                ReadDate = DateTime.Now.AddHours(-4),
+                IsUrgent = true,
+                HasAttachment = false,
+                AttachmentUrl = null,
+                DeliveryStatus = "Delivered",
+                CreatedAt = DateTime.Now.AddHours(-6)
+            }
+        };
+
+        private static List<StudentSchedule> _studentSchedule = new()
+        {
+            new StudentSchedule
+            {
+                Id = "ss1",
+                StudentId = "s1",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                TeacherName = "Dr. John Smith",
+                DayOfWeek = "Monday",
+                StartTime = TimeSpan.FromHours(10),
+                EndTime = TimeSpan.FromHours(12),
+                ClassType = "Lecture",
+                Venue = "Room 201",
+                IsActive = true,
+                EffectiveDate = DateTime.Now.AddDays(-60),
+                ExpiryDate = DateTime.Now.AddDays(120)
+            },
+            new StudentSchedule
+            {
+                Id = "ss2",
+                StudentId = "s1",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                TeacherName = "Dr. John Smith",
+                DayOfWeek = "Wednesday",
+                StartTime = TimeSpan.FromHours(10),
+                EndTime = TimeSpan.FromHours(12),
+                ClassType = "Lecture",
+                Venue = "Room 201",
+                IsActive = true,
+                EffectiveDate = DateTime.Now.AddDays(-60),
+                ExpiryDate = DateTime.Now.AddDays(120)
+            },
+            new StudentSchedule
+            {
+                Id = "ss3",
+                StudentId = "s1",
+                CourseId = "2",
+                CourseName = "Web Development",
+                CourseCode = "IT201",
+                TeacherName = "Prof. Sarah Johnson",
+                DayOfWeek = "Tuesday",
+                StartTime = TimeSpan.FromHours(14),
+                EndTime = TimeSpan.FromHours(17),
+                ClassType = "Lab",
+                Venue = "Lab 105",
+                IsActive = true,
+                EffectiveDate = DateTime.Now.AddDays(-55),
+                ExpiryDate = DateTime.Now.AddDays(115)
+            }
+        };
+
+        private static List<StudentEvent> _studentEvents = new()
+        {
+            new StudentEvent
+            {
+                Id = "se1",
+                StudentId = "s1",
+                Title = "Data Structures Midterm",
+                Description = "Midterm examination covering topics from week 1-8",
+                EventType = "Exam",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                EventDate = DateTime.Now.AddDays(12),
+                StartTime = TimeSpan.FromHours(10),
+                EndTime = TimeSpan.FromHours(12),
+                Venue = "Room 201",
+                IsAllDay = false,
+                Priority = "High",
+                ReminderSet = true,
+                ReminderTime = DateTime.Now.AddDays(11),
+                CreatedBy = "Dr. John Smith",
+                IsCompleted = false,
+                CreatedAt = DateTime.Now.AddDays(-3)
+            },
+            new StudentEvent
+            {
+                Id = "se2",
+                StudentId = "s1",
+                Title = "Assignment: Linked List Implementation",
+                Description = "Implement a doubly linked list with basic operations",
+                EventType = "Assignment",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                EventDate = DateTime.Now.AddDays(5),
+                StartTime = TimeSpan.FromHours(23),
+                EndTime = TimeSpan.FromHours(23).Add(TimeSpan.FromMinutes(59)),
+                Venue = "Online Submission",
+                IsAllDay = false,
+                Priority = "High",
+                ReminderSet = true,
+                ReminderTime = DateTime.Now.AddDays(4),
+                CreatedBy = "Dr. John Smith",
+                IsCompleted = false,
+                CreatedAt = DateTime.Now.AddDays(-7)
+            }
+        };
+
+        private static List<StudentAlert> _studentAlerts = new()
+        {
+            new StudentAlert
+            {
+                Id = "sal1",
+                StudentId = "s1",
+                AlertType = "Low Attendance",
+                Title = "Attendance Warning",
+                Message = "Your attendance in Database Systems has dropped to 71.4%. Please maintain at least 75% attendance.",
+                Severity = "High",
+                CourseId = "3",
+                CourseName = "Database Systems",
+                CourseCode = "CS301",
+                IsActive = true,
+                IsRead = true,
+                ReadDate = DateTime.Now.AddHours(-4),
+                CreatedDate = DateTime.Now.AddHours(-6),
+                ExpiryDate = null,
+                ActionRequired = true,
+                ActionMessage = "Attend upcoming classes regularly",
+                TriggerValue = "71.4%",
+                ThresholdValue = "75%",
+                AutoGenerated = true
+            },
+            new StudentAlert
+            {
+                Id = "sal2",
+                StudentId = "s1",
+                AlertType = "Assignment Due",
+                Title = "Assignment Deadline Approaching",
+                Message = "Linked List Implementation assignment is due in 5 days",
+                Severity = "Medium",
+                CourseId = "1",
+                CourseName = "Data Structures",
+                CourseCode = "CS101",
+                IsActive = true,
+                IsRead = false,
+                ReadDate = null,
+                CreatedDate = DateTime.Now.AddHours(-2),
+                ExpiryDate = DateTime.Now.AddDays(5),
+                ActionRequired = true,
+                ActionMessage = "Complete and submit assignment",
+                TriggerValue = "5 days",
+                ThresholdValue = "7 days",
+                AutoGenerated = true
+            }
+        };
+
+        public StudentService(HttpClient httpClient)
+        {
+            _httpClient = httpClient;
+        }
+
+        // Dashboard Statistics
+        public async Task<StudentDashboardStats> GetDashboardStatsAsync(string studentId)
+        {
+            await Task.Delay(500); // Simulate API call
+            
+            var enrolledCourses = _studentCourses.Where(c => c.StudentId == studentId && c.IsActive).ToList();
+            var activeAssignments = _studentAssignments.Where(a => a.StudentId == studentId && a.SubmissionStatus == "Pending").ToList();
+            var unreadNotices = _studentNotices.Where(n => n.StudentId == studentId && !n.IsRead).ToList();
+            var recentResults = _studentResults.Where(r => r.StudentId == studentId && r.PublishedDate >= DateTime.Now.AddDays(-30)).ToList();
+            var upcomingEvents = _studentEvents.Where(e => e.StudentId == studentId && e.EventDate >= DateTime.Now && e.EventDate <= DateTime.Now.AddDays(7)).ToList();
+            var activeAlerts = _studentAlerts.Where(a => a.StudentId == studentId && a.IsActive).ToList();
+
+            var stats = new StudentDashboardStats
+            {
+                TotalCourses = enrolledCourses.Count,
+                ActiveAssignments = activeAssignments.Count,
+                OverdueAssignments = activeAssignments.Count(a => a.IsOverdue),
+                UnreadNotices = unreadNotices.Count,
+                OverallAttendance = enrolledCourses.Any() ? enrolledCourses.Average(c => c.AttendancePercentage) : 0,
+                CurrentGPA = enrolledCourses.Any() ? enrolledCourses.Average(c => c.GPA) : 0,
+                RecentResults = recentResults.Count,
+                UpcomingEvents = upcomingEvents.Count,
+                ActiveAlerts = activeAlerts.Count,
+                AverageGrade = enrolledCourses.Any() ? CalculateAverageGrade(enrolledCourses) : "N/A",
+                TotalClasses = enrolledCourses.Sum(c => c.TotalClasses),
+                AttendedClasses = enrolledCourses.Sum(c => c.AttendedClasses),
+                TotalCreditHours = enrolledCourses.Sum(c => c.CreditHours),
+                LastLoginDate = DateTime.Now.AddHours(-2),
+                NextClass = GetNextClass(studentId),
+                LowAttendanceCourses = enrolledCourses.Count(c => c.AttendancePercentage < 75),
+                PendingSubmissions = activeAssignments.Count(a => !a.IsOverdue),
+                CompletedAssignments = _studentAssignments.Count(a => a.StudentId == studentId && a.SubmissionStatus == "Submitted" || a.SubmissionStatus == "Graded")
+            };
+
+            return stats;
+        }
+
+        // Student Courses
+        public async Task<List<StudentCourse>> GetStudentCoursesAsync(string studentId)
+        {
+            await Task.Delay(300); // Simulate API call
+            return _studentCourses.Where(c => c.StudentId == studentId && c.IsActive).OrderBy(c => c.CourseName).ToList();
+        }
+
+        public async Task<StudentCourse?> GetCourseDetailsAsync(string studentId, string courseId)
+        {
+            await Task.Delay(200); // Simulate API call
+            return _studentCourses.FirstOrDefault(c => c.StudentId == studentId && c.CourseId == courseId && c.IsActive);
+        }
+
+        // Student Assignments
+        public async Task<List<StudentAssignment>> GetStudentAssignmentsAsync(string studentId, string? courseId = null)
+        {
+            await Task.Delay(300); // Simulate API call
+            var assignments = _studentAssignments.Where(a => a.StudentId == studentId);
+            
+            if (!string.IsNullOrEmpty(courseId))
+                assignments = assignments.Where(a => a.CourseId == courseId);
+                
+            return assignments.OrderByDescending(a => a.CreatedAt).ToList();
+        }
+
+        public async Task<List<StudentAssignment>> GetPendingAssignmentsAsync(string studentId)
+        {
+            await Task.Delay(200); // Simulate API call
+            return _studentAssignments.Where(a => a.StudentId == studentId && a.SubmissionStatus == "Pending")
+                                    .OrderBy(a => a.DueDate).ToList();
+        }
+
+        public async Task<List<StudentAssignment>> GetOverdueAssignmentsAsync(string studentId)
+        {
+            await Task.Delay(200); // Simulate API call
+            return _studentAssignments.Where(a => a.StudentId == studentId && a.IsOverdue)
+                                    .OrderByDescending(a => a.DueDate).ToList();
+        }
+
+        // Student Attendance
+        public async Task<List<StudentAttendanceRecord>> GetAttendanceRecordsAsync(string studentId, string? courseId = null)
+        {
+            await Task.Delay(300); // Simulate API call
+            var records = _attendanceRecords.Where(r => r.StudentId == studentId);
+            
+            if (!string.IsNullOrEmpty(courseId))
+                records = records.Where(r => r.CourseId == courseId);
+                
+            return records.OrderByDescending(r => r.ClassDate).ToList();
+        }
+
+        public async Task<List<StudentAttendanceRecord>> GetRecentAttendanceAsync(string studentId, int days = 7)
+        {
+            await Task.Delay(200); // Simulate API call
+            var fromDate = DateTime.Now.AddDays(-days);
+            return _attendanceRecords.Where(r => r.StudentId == studentId && r.ClassDate >= fromDate)
+                                   .OrderByDescending(r => r.ClassDate).ToList();
+        }
+
+        // Student Results
+        public async Task<List<StudentResult>> GetStudentResultsAsync(string studentId, string? courseId = null)
+        {
+            await Task.Delay(300); // Simulate API call
+            var results = _studentResults.Where(r => r.StudentId == studentId);
+            
+            if (!string.IsNullOrEmpty(courseId))
+                results = results.Where(r => r.CourseId == courseId);
+                
+            return results.OrderByDescending(r => r.ExamDate).ToList();
+        }
+
+        public async Task<List<StudentResult>> GetRecentResultsAsync(string studentId, int days = 30)
+        {
+            await Task.Delay(200); // Simulate API call
+            var fromDate = DateTime.Now.AddDays(-days);
+            return _studentResults.Where(r => r.StudentId == studentId && r.PublishedDate >= fromDate)
+                                 .OrderByDescending(r => r.PublishedDate).ToList();
+        }
+
+        // Student Notices
+        public async Task<List<StudentNotice>> GetStudentNoticesAsync(string studentId, string? type = null)
+        {
+            await Task.Delay(300); // Simulate API call
+            var notices = _studentNotices.Where(n => n.StudentId == studentId);
+            
+            if (!string.IsNullOrEmpty(type))
+                notices = notices.Where(n => n.Type == type);
+                
+            return notices.OrderByDescending(n => n.PublishedDate).ToList();
+        }
+
+        public async Task<List<StudentNotice>> GetUnreadNoticesAsync(string studentId)
+        {
+            await Task.Delay(200); // Simulate API call
+            return _studentNotices.Where(n => n.StudentId == studentId && !n.IsRead)
+                                 .OrderByDescending(n => n.PublishedDate).ToList();
+        }
+
+        public async Task<bool> MarkNoticeAsReadAsync(string studentId, string noticeId)
+        {
+            await Task.Delay(100); // Simulate API call
+            var notice = _studentNotices.FirstOrDefault(n => n.StudentId == studentId && n.NoticeId == noticeId);
+            if (notice != null)
+            {
+                notice.IsRead = true;
+                notice.ReadDate = DateTime.Now;
+                return true;
+            }
+            return false;
+        }
+
+        // Student Schedule
+        public async Task<List<StudentSchedule>> GetStudentScheduleAsync(string studentId, string? dayOfWeek = null)
+        {
+            await Task.Delay(200); // Simulate API call
+            var schedule = _studentSchedule.Where(s => s.StudentId == studentId && s.IsActive);
+            
+            if (!string.IsNullOrEmpty(dayOfWeek))
+                schedule = schedule.Where(s => s.DayOfWeek == dayOfWeek);
+                
+            return schedule.OrderBy(s => s.StartTime).ToList();
+        }
+
+        public async Task<List<StudentSchedule>> GetTodayScheduleAsync(string studentId)
+        {
+            await Task.Delay(200); // Simulate API call
+            var today = DateTime.Now.DayOfWeek.ToString();
+            return await GetStudentScheduleAsync(studentId, today);
+        }
+
+        // Student Events
+        public async Task<List<StudentEvent>> GetStudentEventsAsync(string studentId, DateTime? fromDate = null, DateTime? toDate = null)
+        {
+            await Task.Delay(300); // Simulate API call
+            var events = _studentEvents.Where(e => e.StudentId == studentId);
+            
+            if (fromDate.HasValue)
+                events = events.Where(e => e.EventDate >= fromDate.Value);
+                
+            if (toDate.HasValue)
+                events = events.Where(e => e.EventDate <= toDate.Value);
+                
+            return events.OrderBy(e => e.EventDate).ToList();
+        }
+
+        public async Task<List<StudentEvent>> GetUpcomingEventsAsync(string studentId, int days = 7)
+        {
+            await Task.Delay(200); // Simulate API call
+            var fromDate = DateTime.Now;
+            var toDate = DateTime.Now.AddDays(days);
+            return await GetStudentEventsAsync(studentId, fromDate, toDate);
+        }
+
+        // Student Alerts
+        public async Task<List<StudentAlert>> GetStudentAlertsAsync(string studentId, bool activeOnly = true)
+        {
+            await Task.Delay(200); // Simulate API call
+            var alerts = _studentAlerts.Where(a => a.StudentId == studentId);
+            
+            if (activeOnly)
+                alerts = alerts.Where(a => a.IsActive);
+                
+            return alerts.OrderByDescending(a => a.CreatedDate).ToList();
+        }
+
+        public async Task<bool> MarkAlertAsReadAsync(string studentId, string alertId)
+        {
+            await Task.Delay(100); // Simulate API call
+            var alert = _studentAlerts.FirstOrDefault(a => a.StudentId == studentId && a.Id == alertId);
+            if (alert != null)
+            {
+                alert.IsRead = true;
+                alert.ReadDate = DateTime.Now;
+                return true;
+            }
+            return false;
+        }
+
+        public async Task<bool> DismissAlertAsync(string studentId, string alertId)
+        {
+            await Task.Delay(100); // Simulate API call
+            var alert = _studentAlerts.FirstOrDefault(a => a.StudentId == studentId && a.Id == alertId);
+            if (alert != null)
+            {
+                alert.IsActive = false;
+                return true;
+            }
+            return false;
+        }
+
+        // Performance Analytics
+        public async Task<StudentPerformance> GetStudentPerformanceAsync(string studentId)
+        {
+            await Task.Delay(400); // Simulate API call
+            
+            var courses = _studentCourses.Where(c => c.StudentId == studentId && c.IsActive).ToList();
+            var results = _studentResults.Where(r => r.StudentId == studentId).ToList();
+            var attendance = _attendanceRecords.Where(a => a.StudentId == studentId).ToList();
+
+            return new StudentPerformance
+            {
+                StudentId = studentId,
+                OverallGPA = courses.Any() ? courses.Average(c => c.GPA) : 0,
+                OverallAttendance = courses.Any() ? courses.Average(c => c.AttendancePercentage) : 0,
+                TotalCourses = courses.Count,
+                CompletedCourses = courses.Count(c => c.GradeStatus != "In Progress"),
+                AverageScore = results.Any() ? results.Average(r => r.Percentage) : 0,
+                HighestScore = results.Any() ? results.Max(r => r.Percentage) : 0,
+                LowestScore = results.Any() ? results.Min(r => r.Percentage) : 0,
+                TotalExams = results.Count,
+                PassedExams = results.Count(r => r.Percentage >= 60),
+                FailedExams = results.Count(r => r.Percentage < 60),
+                CurrentSemester = (courses.FirstOrDefault()?.Semester ?? 1).ToString(),
+                TotalCreditHours = courses.Sum(c => c.CreditHours),
+                CompletedCreditHours = courses.Where(c => c.GradeStatus != "In Progress").Sum(c => c.CreditHours),
+                AttendanceStatus = CalculateAttendanceStatus(courses),
+                GradeStatus = CalculateGradeStatus(courses),
+                LastUpdated = DateTime.Now
+            };
+        }
+
+        // Helper Methods
+        private string CalculateAverageGrade(List<StudentCourse> courses)
+        {
+            if (!courses.Any()) return "N/A";
+            
+            var gpa = courses.Average(c => c.GPA);
+            return gpa switch
+            {
+                >= 3.7 => "A",
+                >= 3.3 => "B+",
+                >= 3.0 => "B",
+                >= 2.7 => "C+",
+                >= 2.0 => "C",
+                >= 1.0 => "D",
+                _ => "F"
+            };
+        }
+
+        private string? GetNextClass(string studentId)
+        {
+            var today = DateTime.Now.DayOfWeek.ToString();
+            var todaySchedule = _studentSchedule.Where(s => s.StudentId == studentId && s.IsActive && s.DayOfWeek == today)
+                                              .Where(s => s.StartTime > DateTime.Now.TimeOfDay)
+                                              .OrderBy(s => s.StartTime)
+                                              .FirstOrDefault();
+                                              
+            if (todaySchedule != null)
+            {
+                return $"{todaySchedule.CourseName} at {todaySchedule.StartTime:hh\\:mm}";
+            }
+            
+            return "No more classes today";
+        }
+
+        private string CalculateAttendanceStatus(List<StudentCourse> courses)
+        {
+            if (!courses.Any()) return "N/A";
+            
+            var avgAttendance = courses.Average(c => c.AttendancePercentage);
+            return avgAttendance switch
+            {
+                >= 90 => "Excellent",
+                >= 80 => "Good",
+                >= 75 => "Satisfactory",
+                >= 70 => "Below Average",
+                _ => "Poor"
+            };
+        }
+
+        private string CalculateGradeStatus(List<StudentCourse> courses)
+        {
+            if (!courses.Any()) return "N/A";
+            
+            var avgGPA = courses.Average(c => c.GPA);
+            return avgGPA switch
+            {
+                >= 3.7 => "Excellent",
+                >= 3.0 => "Good",            >= 2.5 => "Satisfactory",
+                >= 2.0 => "Below Average",
+                _ => "Poor"
+            };
+        }        // Additional methods for enhanced dashboard
+        public async Task<List<StudentNotice>> GetNoticesAsync(string studentId)
+        {
+            await Task.Delay(100); // Simulate async operation
+            var notices = await GetStudentNoticesAsync(studentId, null);
+            return notices.OrderByDescending(n => n.PublishedDate).ToList();
+        }
+
+        public async Task<List<StudentAssignment>> GetUpcomingAssignmentsAsync(string studentId)
+        {
+            await Task.Delay(100); // Simulate async operation
+            var assignments = await GetStudentAssignmentsAsync(studentId);
+            return assignments.Where(a => a.DueDate >= DateTime.Now)
+                .OrderBy(a => a.DueDate)
+                .ToList();
+        }
+
+        public async Task<List<StudentAlert>> GetActiveAlertsAsync(string studentId)
+        {
+            await Task.Delay(100); // Simulate async operation
+            return await GetStudentAlertsAsync(studentId, true);
+        }
+    }
+}

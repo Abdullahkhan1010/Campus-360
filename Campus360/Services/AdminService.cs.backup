@@ -1,0 +1,348 @@
+using Campus360.Models;
+
+namespace Campus360.Services
+{
+    public class AdminService
+    {
+        private readonly DatabaseService _databaseService;
+        
+        public AdminService(DatabaseService databaseService)
+        {
+            _databaseService = databaseService;
+        }        // Dashboard Statistics
+        public async Task<AdminDashboardStats> GetDashboardStatsAsync()
+        {
+            try
+            {
+                var users = await _databaseService.GetAllAsync<UserProfile>("users");
+                var departments = await _databaseService.GetAllAsync<Department>("departments");
+                var courses = await _databaseService.GetAllAsync<Course>("courses");
+                
+                var stats = new AdminDashboardStats
+                {
+                    TotalUsers = users.Count,
+                    TotalTeachers = users.Count(u => u.Role == "teacher"),
+                    TotalStudents = users.Count(u => u.Role == "student"),
+                    TotalDepartments = departments.Count(d => d.IsActive),
+                    ActiveCourses = courses.Count(c => c.IsActive),
+                    PendingApprovals = users.Count(u => !u.IsVerified),
+                    UnverifiedUsers = users.Count(u => !u.IsVerified),
+                    InactiveUsers = users.Count(u => !u.IsActive),
+                    TotalDepartmentCount = departments.Count,
+                    TotalCourseCount = courses.Count
+                };
+                
+                return stats;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting dashboard stats: {ex.Message}");
+                return new AdminDashboardStats(); // Return empty stats if error
+            }
+        }
+
+        // Recent Activities
+        public async Task<List<ActivityModel>> GetRecentActivitiesAsync()
+        {
+            try
+            {
+                // Get recent user activities from audit logs
+                var activities = await _databaseService.GetAllAsync<ActivityModel>("activities");
+                return activities.OrderByDescending(a => a.CreatedAt).Take(10).ToList();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting recent activities: {ex.Message}");
+                return new List<ActivityModel>();
+            }
+        }
+                RecentActivities = new List<RecentActivity>
+                {
+                    new RecentActivity { Id = "1", Action = "User Created", Description = "New teacher account created", UserName = "Jane Smith", Timestamp = DateTime.Now.AddHours(-2), ActivityType = "user_created" },
+                    new RecentActivity { Id = "2", Action = "Course Assigned", Description = "Data Structures assigned to John Doe", UserName = "John Doe", Timestamp = DateTime.Now.AddHours(-5), ActivityType = "course_assigned" },
+                    new RecentActivity { Id = "3", Action = "Department Created", Description = "New department: Artificial Intelligence", UserName = "Admin", Timestamp = DateTime.Now.AddDays(-1), ActivityType = "department_created" }
+                }
+            };
+
+            return stats;
+        }
+
+        // Department Management
+        public async Task<List<Department>> GetDepartmentsAsync()
+        {
+            await Task.Delay(300); // Simulate API call
+            return _departments.Where(d => d.IsActive).OrderBy(d => d.Name).ToList();
+        }
+
+        public async Task<Department?> GetDepartmentByIdAsync(string id)
+        {
+            await Task.Delay(200);
+            return _departments.FirstOrDefault(d => d.Id == id);
+        }
+
+        public async Task<bool> CreateDepartmentAsync(Department department)
+        {
+            await Task.Delay(500);
+            department.Id = Guid.NewGuid().ToString();
+            department.CreatedAt = DateTime.Now;
+            department.UpdatedAt = DateTime.Now;
+            _departments.Add(department);
+            return true;
+        }
+
+        public async Task<bool> UpdateDepartmentAsync(Department department)
+        {
+            await Task.Delay(500);
+            var existing = _departments.FirstOrDefault(d => d.Id == department.Id);
+            if (existing != null)
+            {
+                existing.Name = department.Name;
+                existing.Code = department.Code;
+                existing.Description = department.Description;
+                existing.UpdatedAt = DateTime.Now;
+                return true;
+            }
+            return false;
+        }
+
+        public async Task<bool> DeleteDepartmentAsync(string id)
+        {
+            await Task.Delay(300);
+            var department = _departments.FirstOrDefault(d => d.Id == id);
+            if (department != null)
+            {
+                department.IsActive = false;
+                return true;
+            }
+            return false;
+        }
+
+        // User Management
+        public async Task<List<UserManagementModel>> GetUsersAsync(string? role = null, bool? verified = null)
+        {
+            await Task.Delay(400);
+            var query = _users.AsQueryable();
+
+            if (!string.IsNullOrEmpty(role))
+                query = query.Where(u => u.Role == role);
+
+            if (verified.HasValue)
+                query = query.Where(u => u.IsVerified == verified.Value);
+
+            return query.OrderBy(u => u.FullName).ToList();
+        }
+
+        public async Task<bool> VerifyUserAsync(string userId)
+        {
+            await Task.Delay(300);
+            var user = _users.FirstOrDefault(u => u.Id == userId);
+            if (user != null)
+            {
+                user.IsVerified = true;
+                return true;
+            }
+            return false;
+        }
+
+        public async Task<bool> AssignUserToDepartmentAsync(string userId, string departmentId)
+        {
+            await Task.Delay(300);
+            var user = _users.FirstOrDefault(u => u.Id == userId);
+            var department = _departments.FirstOrDefault(d => d.Id == departmentId);
+            
+            if (user != null && department != null)
+            {
+                user.DepartmentId = departmentId;
+                user.DepartmentName = department.Name;
+                return true;
+            }
+            return false;
+        }        public async Task<bool> ToggleUserStatusAsync(string userId)
+        {
+            await Task.Delay(300);
+            var user = _users.FirstOrDefault(u => u.Id == userId);
+            if (user != null)
+            {
+                user.IsActive = !user.IsActive;
+                return true;
+            }
+            return false;
+        }
+
+        public async Task<bool> CreateUserAsync(dynamic userModel)
+        {
+            await Task.Delay(500);
+            
+            var newUser = new UserManagementModel
+            {
+                Id = Guid.NewGuid().ToString(),
+                Email = userModel.Email,
+                FullName = userModel.FullName,
+                Role = userModel.Role,
+                DepartmentId = userModel.DepartmentId,
+                IsVerified = userModel.IsVerified,
+                IsActive = true,
+                CreatedAt = DateTime.Now,
+                LastLoginAt = DateTime.MinValue
+            };
+
+            // Set department name if department is assigned
+            if (!string.IsNullOrEmpty(newUser.DepartmentId))
+            {
+                var department = _departments.FirstOrDefault(d => d.Id == newUser.DepartmentId);
+                newUser.DepartmentName = department?.Name;
+            }
+
+            _users.Add(newUser);
+            return true;
+        }
+
+        public async Task<bool> UpdateUserAsync(dynamic userModel)
+        {
+            await Task.Delay(500);
+            
+            var existingUser = _users.FirstOrDefault(u => u.Id == userModel.Id);
+            if (existingUser != null)
+            {
+                existingUser.Email = userModel.Email;
+                existingUser.FullName = userModel.FullName;
+                existingUser.Role = userModel.Role;
+                existingUser.DepartmentId = userModel.DepartmentId;
+                existingUser.IsVerified = userModel.IsVerified;
+
+                // Set department name if department is assigned
+                if (!string.IsNullOrEmpty(existingUser.DepartmentId))
+                {
+                    var department = _departments.FirstOrDefault(d => d.Id == existingUser.DepartmentId);
+                    existingUser.DepartmentName = department?.Name;
+                }
+                else
+                {
+                    existingUser.DepartmentName = null;
+                }
+
+                return true;
+            }
+            return false;
+        }
+
+        // Course Management
+        public async Task<List<Course>> GetCoursesAsync(string? departmentId = null)
+        {
+            await Task.Delay(400);
+            var query = _courses.Where(c => c.IsActive).AsQueryable();
+
+            if (!string.IsNullOrEmpty(departmentId))
+                query = query.Where(c => c.DepartmentId == departmentId);
+
+            return query.OrderBy(c => c.Name).ToList();
+        }
+
+        public async Task<bool> CreateCourseAsync(Course course)
+        {
+            await Task.Delay(500);
+            course.Id = Guid.NewGuid().ToString();
+            course.CreatedAt = DateTime.Now;
+            course.UpdatedAt = DateTime.Now;
+            _courses.Add(course);
+            return true;
+        }
+
+        public async Task<bool> AssignCourseToTeacherAsync(string courseId, string teacherId)
+        {
+            await Task.Delay(300);
+            var course = _courses.FirstOrDefault(c => c.Id == courseId);
+            if (course != null)
+            {
+                course.TeacherId = teacherId;
+                return true;
+            }
+            return false;
+        }
+
+        public async Task<List<CourseAssignmentModel>> GetCourseAssignmentsAsync()
+        {
+            await Task.Delay(400);
+            return _courses.Select(c => new CourseAssignmentModel
+            {
+                CourseId = c.Id,
+                CourseName = c.Name,
+                CourseCode = c.Code,
+                TeacherId = c.TeacherId ?? "",
+                TeacherName = GetTeacherName(c.TeacherId),
+                DepartmentName = GetDepartmentName(c.DepartmentId),
+                IsAssigned = !string.IsNullOrEmpty(c.TeacherId)
+            }).ToList();
+        }
+
+        public async Task<List<ActivityModel>> GetRecentActivitiesAsync()
+        {
+            await Task.Delay(300);
+            
+            // Generate mock recent activities
+            var activities = new List<ActivityModel>
+            {
+                new ActivityModel
+                {
+                    Id = "1",
+                    Title = "New user registered",
+                    Description = "Jane Smith joined as Teacher",
+                    Type = "user_created",
+                    CreatedAt = DateTime.Now.AddHours(-2),
+                    UserName = "Jane Smith"
+                },
+                new ActivityModel
+                {
+                    Id = "2", 
+                    Title = "User verified",
+                    Description = "John Doe account was verified",
+                    Type = "user_verified",
+                    CreatedAt = DateTime.Now.AddHours(-4),
+                    UserName = "John Doe"
+                },
+                new ActivityModel
+                {
+                    Id = "3",
+                    Title = "Course created",
+                    Description = "Web Development course was added",
+                    Type = "course_created",
+                    CreatedAt = DateTime.Now.AddHours(-6),
+                    UserName = "Admin"
+                },
+                new ActivityModel
+                {
+                    Id = "4",
+                    Title = "Department created",
+                    Description = "Artificial Intelligence department was created",
+                    Type = "department_created",
+                    CreatedAt = DateTime.Now.AddDays(-1),
+                    UserName = "Admin"
+                },
+                new ActivityModel
+                {
+                    Id = "5",
+                    Title = "User assigned",
+                    Description = "Alice Johnson assigned to Computer Science",
+                    Type = "user_assigned",
+                    CreatedAt = DateTime.Now.AddDays(-2),
+                    UserName = "Alice Johnson"
+                }
+            };
+
+            return activities.OrderByDescending(a => a.CreatedAt).ToList();
+        }
+
+        private string GetTeacherName(string? teacherId)
+        {
+            if (string.IsNullOrEmpty(teacherId)) return "Unassigned";
+            var teacher = _users.FirstOrDefault(u => u.Id == teacherId && u.Role == "teacher");
+            return teacher?.FullName ?? "Unknown Teacher";
+        }
+
+        private string GetDepartmentName(string departmentId)
+        {
+            var department = _departments.FirstOrDefault(d => d.Id == departmentId);
+            return department?.Name ?? "Unknown Department";
+        }
+    }
+}

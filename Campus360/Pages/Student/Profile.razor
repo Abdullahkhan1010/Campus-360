@@ -1,0 +1,465 @@
+@page "/student/profile"
+@layout StudentLayout
+@using Campus360.Services
+@using Campus360.Models
+@inject StudentService StudentService
+@inject UserContextService UserContext
+
+<div class="container-fluid p-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">
+                    <i class="fas fa-user text-primary me-2"></i>
+                    My Profile
+                </h2>
+                <div class="d-flex gap-2">
+                    @if (!isEditing)
+                    {
+                        <button class="btn btn-outline-primary" @onclick="StartEditing">
+                            <i class="fas fa-edit me-1"></i>
+                            Edit Profile
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-outline-secondary" @onclick="CancelEditing">
+                            <i class="fas fa-times me-1"></i>
+                            Cancel
+                        </button>
+                        <button class="btn btn-primary" @onclick="SaveProfile" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            }
+                            else
+                            {
+                                <i class="fas fa-save me-1"></i>
+                            }
+                            Save Changes
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading your profile...</p>
+                </div>
+            }
+            else if (currentUser != null)
+            {
+                <div class="row">
+                    <!-- Profile Picture and Basic Info -->
+                    <div class="col-lg-4 mb-4">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body text-center">
+                                <div class="position-relative d-inline-block mb-3">
+                                    <img src="@GetProfileImageUrl()" alt="Profile Picture" 
+                                         class="rounded-circle border" style="width: 150px; height: 150px; object-fit: cover;">
+                                    @if (isEditing)
+                                    {
+                                        <button class="btn btn-sm btn-primary rounded-circle position-absolute bottom-0 end-0" 
+                                                style="width: 40px; height: 40px;" @onclick="ChangeProfilePicture">
+                                            <i class="fas fa-camera"></i>
+                                        </button>
+                                    }
+                                </div>
+                                <h4 class="mb-1">@currentUser.FullName</h4>
+                                <p class="text-muted mb-2">@currentUser.Role</p>
+                                <span class="badge bg-primary fs-6 rounded-pill mb-3">
+                                    ID: @currentUser.StudentId
+                                </span>
+                                
+                                <div class="border-top pt-3 mt-3">
+                                    <div class="row text-center">
+                                        <div class="col-4">
+                                            <div class="fw-bold text-primary">@GetCurrentSemester()</div>
+                                            <small class="text-muted">Semester</small>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="fw-bold text-success">@GetCurrentGPA()</div>
+                                            <small class="text-muted">GPA</small>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="fw-bold text-info">@GetCompletedCredits()</div>
+                                            <small class="text-muted">Credits</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Stats -->
+                        <div class="card border-0 shadow-sm mt-4">
+                            <div class="card-header bg-white">
+                                <h6 class="mb-0">Academic Status</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span>Enrollment Status</span>
+                                    <span class="badge bg-success rounded-pill">Active</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span>Academic Standing</span>
+                                    <span class="badge @GetAcademicStandingClass() rounded-pill">@GetAcademicStanding()</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span>Expected Graduation</span>
+                                    <span class="text-muted">@GetExpectedGraduation()</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>Advisor</span>
+                                    <span class="text-primary">@GetAdvisorName()</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Profile Details -->
+                    <div class="col-lg-8">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-white">
+                                <h5 class="mb-0">Personal Information</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">First Name</label>
+                                        @if (isEditing)
+                                        {
+                                            <input @bind="editedUser.FirstName" class="form-control" placeholder="First Name" />
+                                        }
+                                        else
+                                        {
+                                            <div class="form-control-plaintext">@currentUser.FirstName</div>
+                                        }
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Last Name</label>
+                                        @if (isEditing)
+                                        {
+                                            <input @bind="editedUser.LastName" class="form-control" placeholder="Last Name" />
+                                        }
+                                        else
+                                        {
+                                            <div class="form-control-plaintext">@currentUser.LastName</div>
+                                        }
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Email</label>
+                                        @if (isEditing)
+                                        {
+                                            <input @bind="editedUser.Email" type="email" class="form-control" placeholder="Email" />
+                                        }
+                                        else
+                                        {
+                                            <div class="form-control-plaintext">@currentUser.Email</div>
+                                        }
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Phone</label>
+                                        @if (isEditing)
+                                        {
+                                            <input @bind="editedUser.Phone" type="tel" class="form-control" placeholder="Phone Number" />
+                                        }
+                                        else
+                                        {
+                                            <div class="form-control-plaintext">@(currentUser.Phone ?? "Not provided")</div>
+                                        }
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Date of Birth</label>
+                                        @if (isEditing)
+                                        {
+                                            <input @bind="editedUser.DateOfBirth" type="date" class="form-control" />
+                                        }
+                                        else
+                                        {
+                                            <div class="form-control-plaintext">@(currentUser.DateOfBirth?.ToString("MMM dd, yyyy") ?? "Not provided")</div>
+                                        }
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Gender</label>
+                                        @if (isEditing)
+                                        {
+                                            <select @bind="editedUser.Gender" class="form-select">
+                                                <option value="">Select Gender</option>
+                                                <option value="Male">Male</option>
+                                                <option value="Female">Female</option>
+                                                <option value="Other">Other</option>
+                                                <option value="Prefer not to say">Prefer not to say</option>
+                                            </select>
+                                        }
+                                        else
+                                        {
+                                            <div class="form-control-plaintext">@(currentUser.Gender ?? "Not specified")</div>
+                                        }
+                                    </div>
+                                    <div class="col-12 mb-3">
+                                        <label class="form-label">Address</label>
+                                        @if (isEditing)
+                                        {
+                                            <textarea @bind="editedUser.Address" class="form-control" rows="3" placeholder="Address"></textarea>
+                                        }
+                                        else
+                                        {
+                                            <div class="form-control-plaintext">@(currentUser.Address ?? "Not provided")</div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Academic Information -->
+                        <div class="card border-0 shadow-sm mt-4">
+                            <div class="card-header bg-white">
+                                <h5 class="mb-0">Academic Information</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Student ID</label>
+                                        <div class="form-control-plaintext">@currentUser.StudentId</div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Program</label>
+                                        <div class="form-control-plaintext">@(currentUser.Program ?? "Not specified")</div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Department</label>
+                                        <div class="form-control-plaintext">@(currentUser.Department ?? "Not specified")</div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Academic Year</label>
+                                        <div class="form-control-plaintext">@(currentUser.AcademicYear ?? "Not specified")</div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Admission Date</label>
+                                        <div class="form-control-plaintext">@(currentUser.AdmissionDate?.ToString("MMM dd, yyyy") ?? "Not specified")</div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Expected Graduation</label>
+                                        <div class="form-control-plaintext">@GetExpectedGraduation()</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Emergency Contact -->
+                        <div class="card border-0 shadow-sm mt-4">
+                            <div class="card-header bg-white">
+                                <h5 class="mb-0">Emergency Contact</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Contact Name</label>
+                                        @if (isEditing)
+                                        {
+                                            <input @bind="editedUser.EmergencyContactName" class="form-control" placeholder="Emergency Contact Name" />
+                                        }
+                                        else
+                                        {
+                                            <div class="form-control-plaintext">@(currentUser.EmergencyContactName ?? "Not provided")</div>
+                                        }
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Contact Phone</label>
+                                        @if (isEditing)
+                                        {
+                                            <input @bind="editedUser.EmergencyContactPhone" type="tel" class="form-control" placeholder="Emergency Contact Phone" />
+                                        }
+                                        else
+                                        {
+                                            <div class="form-control-plaintext">@(currentUser.EmergencyContactPhone ?? "Not provided")</div>
+                                        }
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Relationship</label>
+                                        @if (isEditing)
+                                        {
+                                            <select @bind="editedUser.EmergencyContactRelationship" class="form-select">
+                                                <option value="">Select Relationship</option>
+                                                <option value="Parent">Parent</option>
+                                                <option value="Guardian">Guardian</option>
+                                                <option value="Spouse">Spouse</option>
+                                                <option value="Sibling">Sibling</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        }
+                                        else
+                                        {
+                                            <div class="form-control-plaintext">@(currentUser.EmergencyContactRelationship ?? "Not specified")</div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="fas fa-user-times text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="mt-3 text-muted">Profile Not Found</h4>
+                    <p class="text-muted">Unable to load your profile information.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool isEditing = false;
+    private bool isSaving = false;
+    private UserProfile? currentUser;
+    private UserProfile editedUser = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfile();
+    }
+
+    private async Task LoadProfile()
+    {
+        isLoading = true;
+        try
+        {
+            currentUser = await UserContext.GetCurrentUserAsync();
+            if (currentUser != null)
+            {
+                editedUser = new UserProfile
+                {
+                    Id = currentUser.Id,
+                    FirstName = currentUser.FirstName,
+                    LastName = currentUser.LastName,
+                    Email = currentUser.Email,
+                    Phone = currentUser.Phone,
+                    DateOfBirth = currentUser.DateOfBirth,
+                    Gender = currentUser.Gender,
+                    Address = currentUser.Address,
+                    EmergencyContactName = currentUser.EmergencyContactName,
+                    EmergencyContactPhone = currentUser.EmergencyContactPhone,
+                    EmergencyContactRelationship = currentUser.EmergencyContactRelationship
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading profile: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void StartEditing()
+    {
+        isEditing = true;
+    }
+
+    private void CancelEditing()
+    {
+        isEditing = false;
+        // Reset edited user to current user values
+        if (currentUser != null)
+        {
+            editedUser.FirstName = currentUser.FirstName;
+            editedUser.LastName = currentUser.LastName;
+            editedUser.Email = currentUser.Email;
+            editedUser.Phone = currentUser.Phone;
+            editedUser.DateOfBirth = currentUser.DateOfBirth;
+            editedUser.Gender = currentUser.Gender;
+            editedUser.Address = currentUser.Address;
+            editedUser.EmergencyContactName = currentUser.EmergencyContactName;
+            editedUser.EmergencyContactPhone = currentUser.EmergencyContactPhone;
+            editedUser.EmergencyContactRelationship = currentUser.EmergencyContactRelationship;
+        }
+    }
+
+    private async Task SaveProfile()
+    {
+        isSaving = true;
+        try
+        {
+            // In a real implementation, this would call an API to update the profile
+            await Task.Delay(1000); // Simulate API call
+
+            // Update current user with edited values
+            if (currentUser != null)
+            {
+                currentUser.FirstName = editedUser.FirstName;
+                currentUser.LastName = editedUser.LastName;
+                currentUser.Email = editedUser.Email;
+                currentUser.Phone = editedUser.Phone;
+                currentUser.DateOfBirth = editedUser.DateOfBirth;
+                currentUser.Gender = editedUser.Gender;
+                currentUser.Address = editedUser.Address;
+                currentUser.EmergencyContactName = editedUser.EmergencyContactName;
+                currentUser.EmergencyContactPhone = editedUser.EmergencyContactPhone;
+                currentUser.EmergencyContactRelationship = editedUser.EmergencyContactRelationship;
+            }
+
+            isEditing = false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving profile: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ChangeProfilePicture()
+    {
+        // Implementation for changing profile picture
+        // This would typically open a file picker or modal
+    }
+
+    private string GetProfileImageUrl()
+    {
+        // Return default avatar or user's profile picture URL
+        return "/images/default-avatar.png";
+    }
+
+    private string GetCurrentSemester() => "Fall 2024";
+    private string GetCurrentGPA() => "3.75";
+    private string GetCompletedCredits() => "85";
+    private string GetExpectedGraduation() => "May 2025";
+    private string GetAdvisorName() => "Dr. Smith";
+
+    private string GetAcademicStanding()
+    {
+        var gpa = 3.75; // This would come from actual data
+        return gpa switch
+        {
+            >= 3.5 => "Dean's List",
+            >= 3.0 => "Good Standing",
+            >= 2.0 => "Academic Warning",
+            _ => "Academic Probation"
+        };
+    }
+
+    private string GetAcademicStandingClass()
+    {
+        var standing = GetAcademicStanding();
+        return standing switch
+        {
+            "Dean's List" => "bg-success",
+            "Good Standing" => "bg-info",
+            "Academic Warning" => "bg-warning",
+            "Academic Probation" => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+}

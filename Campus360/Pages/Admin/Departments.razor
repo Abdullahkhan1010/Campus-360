@@ -1,0 +1,425 @@
+@page "/admin/departments"
+@layout ModernAdminLayout_Fixed
+@inject AdminService AdminService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Department Management - Campus360</PageTitle>
+
+<div class="modern-page-header">
+    <div class="modern-page-title">
+        <div class="modern-page-icon">
+            <i class="bi bi-building"></i>
+        </div>
+        <div>
+            <h1>Department Management</h1>
+            <p class="modern-page-subtitle">Organize and manage academic departments</p>
+        </div>
+    </div>
+    <div class="modern-page-actions">
+        <button class="modern-btn modern-btn-primary" @onclick="ShowAddDepartmentModal">
+            <i class="bi bi-building-add"></i>
+            Add Department
+        </button>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="modern-stats-grid">
+    <div class="modern-stat-card" data-stat="primary">
+        <div class="modern-stat-icon">
+            <i class="bi bi-building"></i>
+        </div>
+        <div class="modern-stat-content">
+            <div class="modern-stat-value">@DepartmentsList.Count</div>
+            <div class="modern-stat-label">Total Departments</div>
+        </div>
+        <div class="modern-stat-trend">
+            <i class="bi bi-arrow-up"></i>
+            <span>+8%</span>
+        </div>
+    </div>
+    <div class="modern-stat-card" data-stat="success">
+        <div class="modern-stat-icon">
+            <i class="bi bi-check-circle"></i>
+        </div>
+        <div class="modern-stat-content">
+            <div class="modern-stat-value">@DepartmentsList.Count(d => d.IsActive)</div>
+            <div class="modern-stat-label">Active Departments</div>
+        </div>
+        <div class="modern-stat-trend">
+            <i class="bi bi-arrow-up"></i>
+            <span>+5%</span>
+        </div>
+    </div>
+    <div class="modern-stat-card" data-stat="secondary">
+        <div class="modern-stat-icon">
+            <i class="bi bi-x-circle"></i>
+        </div>
+        <div class="modern-stat-content">
+            <div class="modern-stat-value">@DepartmentsList.Count(d => !d.IsActive)</div>
+            <div class="modern-stat-label">Inactive Departments</div>
+        </div>
+        <div class="modern-stat-trend">
+            <i class="bi bi-arrow-down"></i>
+            <span>-2%</span>
+        </div>
+    </div>
+    <div class="modern-stat-card" data-stat="info">
+        <div class="modern-stat-icon">
+            <i class="bi bi-book"></i>
+        </div>
+        <div class="modern-stat-content">
+            <div class="modern-stat-value">@GetTotalCourses()</div>
+            <div class="modern-stat-label">Total Courses</div>
+        </div>
+        <div class="modern-stat-trend">
+            <i class="bi bi-arrow-up"></i>
+            <span>+15%</span>
+        </div>
+    </div>
+</div>
+
+<!-- Departments Grid -->
+<div class="row">
+    @if (IsLoading)
+    {
+        <div class="col-12">
+            <div class="text-center p-4">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading departments...</p>
+            </div>
+        </div>
+    }    else if (DepartmentsList.Any())
+    {
+        @foreach (var department in DepartmentsList)
+        {
+            <div class="col-lg-6 col-xl-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">@department.Name</h5>
+                        <span class="badge bg-@(department.IsActive ? "success" : "secondary")">
+                            @(department.IsActive ? "Active" : "Inactive")
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <strong>Code:</strong> @department.Code
+                        </div>
+                        @if (!string.IsNullOrEmpty(department.Description))
+                        {
+                            <div class="mb-3">
+                                <strong>Description:</strong>
+                                <p class="text-muted">@department.Description</p>
+                            </div>
+                        }
+                        
+                        <!-- Department Statistics -->
+                        <div class="row text-center mb-3">
+                            <div class="col-6">
+                                <div class="border-end">
+                                    <h6 class="text-success">@TeacherCounts.GetValueOrDefault(department.Id, 0)</h6>
+                                    <small class="text-muted">Teachers</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <h6 class="text-info">@StudentCounts.GetValueOrDefault(department.Id, 0)</h6>
+                                <small class="text-muted">Students</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <small class="text-muted">Created: @department.CreatedAt.ToString("MMM dd, yyyy")</small>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="btn-group w-100" role="group">
+                            <button class="btn btn-outline-primary btn-sm" 
+                                    @onclick="() => EditDepartment(department)" 
+                                    title="Edit Department">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" 
+                                    @onclick="() => ViewDepartmentDetails(department.Id)" 
+                                    title="View Details">
+                                <i class="bi bi-eye"></i> Details
+                            </button>
+                            @if (department.IsActive)
+                            {
+                                <button class="btn btn-outline-warning btn-sm" 
+                                        @onclick="() => DeactivateDepartment(department.Id)" 
+                                        title="Deactivate">
+                                    <i class="bi bi-pause"></i>
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline-success btn-sm" 
+                                        @onclick="() => ActivateDepartment(department.Id)" 
+                                        title="Activate">
+                                    <i class="bi bi-play"></i>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="col-12">
+            <div class="text-center p-5">
+                <i class="bi bi-building display-1 text-muted"></i>
+                <h5 class="mt-3">No departments found</h5>
+                <p class="text-muted">Start by creating your first department.</p>
+                <button class="btn btn-primary" @onclick="ShowAddDepartmentModal">
+                    <i class="bi bi-building-add me-2"></i>Add Department
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Department Details Modal -->
+@if (SelectedDepartment != null)
+{
+    <div class="modal fade" id="departmentDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@SelectedDepartment.Name Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6>Basic Information</h6>
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>Name:</strong></td>
+                                    <td>@SelectedDepartment.Name</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Code:</strong></td>
+                                    <td>@SelectedDepartment.Code</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Status:</strong></td>
+                                    <td>
+                                        <span class="badge bg-@(SelectedDepartment.IsActive ? "success" : "secondary")">
+                                            @(SelectedDepartment.IsActive ? "Active" : "Inactive")
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Created:</strong></td>
+                                    <td>@SelectedDepartment.CreatedAt.ToString("MMMM dd, yyyy")</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Statistics</h6>
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body py-2">
+                                            <h4 class="text-success">@TeacherCounts.GetValueOrDefault(SelectedDepartment.Id, 0)</h4>
+                                            <small>Teachers</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body py-2">
+                                            <h4 class="text-info">@StudentCounts.GetValueOrDefault(SelectedDepartment.Id, 0)</h4>
+                                            <small>Students</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    @if (!string.IsNullOrEmpty(SelectedDepartment.Description))
+                    {
+                        <div class="mb-4">
+                            <h6>Description</h6>
+                            <p class="text-muted">@SelectedDepartment.Description</p>
+                        </div>
+                    }
+
+                    <!-- Teachers List -->
+                    @if (DepartmentTeachers.Any())
+                    {
+                        <div class="mb-4">
+                            <h6>Teachers in Department</h6>
+                            <div class="list-group">
+                                @foreach (var teacher in DepartmentTeachers)
+                                {
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>@teacher.FullName</strong>
+                                            <br><small class="text-muted">@teacher.Email</small>
+                                        </div>
+                                        <span class="badge bg-success">Teacher</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Students List -->
+                    @if (DepartmentStudents.Any())
+                    {
+                        <div class="mb-4">
+                            <h6>Students in Department (First 10)</h6>
+                            <div class="list-group">
+                                @foreach (var student in DepartmentStudents.Take(10))
+                                {
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>@student.FullName</strong>
+                                            <br><small class="text-muted">@student.Email</small>
+                                        </div>
+                                        <span class="badge bg-info">Student</span>
+                                    </div>
+                                }
+                                @if (DepartmentStudents.Count > 10)
+                                {
+                                    <div class="list-group-item text-center">
+                                        <small class="text-muted">And @(DepartmentStudents.Count - 10) more students...</small>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" @onclick="() => EditDepartment(SelectedDepartment)" data-bs-dismiss="modal">
+                        <i class="bi bi-pencil me-1"></i>Edit Department
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Department Modal -->
+<DepartmentModal @ref="DepartmentModalRef" OnDepartmentSaved="OnDepartmentSaved" />
+
+@code {
+    private List<Department> DepartmentsList = new();
+    private List<UserManagementModel> DepartmentTeachers = new();
+    private List<UserManagementModel> DepartmentStudents = new();
+    private Dictionary<string, int> TeacherCounts = new();
+    private Dictionary<string, int> StudentCounts = new();
+    private bool IsLoading = true;
+    private Department? SelectedDepartment;
+
+    // Modal reference
+    private DepartmentModal? DepartmentModalRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        IsLoading = true;
+        try
+        {
+            DepartmentsList = await AdminService.GetDepartmentsAsync();
+            var allUsers = await AdminService.GetUsersAsync();
+            
+            // Calculate teacher and student counts per department
+            TeacherCounts = allUsers
+                .Where(u => u.Role == "teacher" && !string.IsNullOrEmpty(u.DepartmentId))
+                .GroupBy(u => u.DepartmentId!)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            StudentCounts = allUsers
+                .Where(u => u.Role == "student" && !string.IsNullOrEmpty(u.DepartmentId))
+                .GroupBy(u => u.DepartmentId!)
+                .ToDictionary(g => g.Key, g => g.Count());
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task ShowAddDepartmentModal()
+    {
+        if (DepartmentModalRef != null)
+        {
+            await DepartmentModalRef.ShowAsync();
+        }
+    }
+
+    private async Task EditDepartment(Department department)
+    {
+        if (DepartmentModalRef != null)
+        {
+            await DepartmentModalRef.ShowAsync(department);
+        }
+    }
+
+    private async Task ViewDepartmentDetails(string departmentId)
+    {
+        SelectedDepartment = DepartmentsList.FirstOrDefault(d => d.Id == departmentId);
+        if (SelectedDepartment != null)
+        {
+            // Load department users
+            var allUsers = await AdminService.GetUsersAsync();
+            DepartmentTeachers = allUsers.Where(u => u.Role == "teacher" && u.DepartmentId == departmentId).ToList();
+            DepartmentStudents = allUsers.Where(u => u.Role == "student" && u.DepartmentId == departmentId).ToList();
+            
+            await JSRuntime.InvokeVoidAsync("showModal", "departmentDetailsModal");
+        }
+    }
+
+    private async Task ActivateDepartment(string departmentId)
+    {
+        var department = DepartmentsList.FirstOrDefault(d => d.Id == departmentId);
+        if (department != null)
+        {
+            department.IsActive = true;
+            if (await AdminService.UpdateDepartmentAsync(department))
+            {
+                await ShowSuccessMessage("Department activated successfully!");
+            }
+        }
+    }
+
+    private async Task DeactivateDepartment(string departmentId)
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to deactivate this department?"))
+        {
+            if (await AdminService.DeleteDepartmentAsync(departmentId))
+            {
+                await LoadData();
+                await ShowSuccessMessage("Department deactivated successfully!");
+            }
+        }
+    }
+
+    private async Task OnDepartmentSaved()
+    {
+        await LoadData();
+        await ShowSuccessMessage("Department saved successfully!");
+    }    private async Task ShowSuccessMessage(string message)
+    {
+        await JSRuntime.InvokeVoidAsync("showToast", message, "success");
+    }
+
+    private int GetTotalCourses()
+    {
+        // This would typically come from a course service
+        // For now, return a mock value
+        return DepartmentsList.Count * 3; // Assuming 3 courses per department on average
+    }
+}

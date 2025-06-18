@@ -1,0 +1,405 @@
+@page "/admin/system-settings"
+@layout ModernAdminLayout_Fixed
+@using Campus360.Models
+@using Campus360.Services
+@inject SystemSettingsService SystemSettingsService
+@inject IJSRuntime JSRuntime
+@attribute [Authorize(Roles = "admin")]
+
+<PageTitle>System Settings - Campus360</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header pb-0">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <h6 class="mb-0">System Settings</h6>
+                            <p class="text-sm mb-0">Manage global application configuration</p>
+                        </div>
+                        <div>
+                            <button class="btn btn-primary btn-sm" @onclick="ShowCreateModal">
+                                <i class="fas fa-plus me-2"></i>Add Setting
+                            </button>
+                            <button class="btn btn-success btn-sm ms-2" @onclick="RefreshSettings">
+                                <i class="fas fa-sync-alt me-2"></i>Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body px-0 pt-0 pb-2">
+                    @if (isLoading)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="row px-3 mb-3">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="categoryFilter">Filter by Category:</label>
+                                    <select class="form-control" id="categoryFilter" @bind="selectedCategory" @bind:after="FilterSettings">
+                                        <option value="">All Categories</option>
+                                        @foreach (var category in categories)
+                                        {
+                                            <option value="@category">@category</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="searchTerm">Search Settings:</label>
+                                    <input type="text" class="form-control" id="searchTerm" @bind="searchTerm" @oninput="FilterSettings" placeholder="Search by key or description..." />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="visibilityFilter">Visibility:</label>
+                                    <select class="form-control" id="visibilityFilter" @bind="visibilityFilter" @bind:after="FilterSettings">
+                                        <option value="">All Settings</option>
+                                        <option value="public">Public Only</option>
+                                        <option value="private">Private Only</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive p-0">
+                            <table class="table align-items-center mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Category</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Key</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Value</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Type</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Visibility</th>
+                                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Updated</th>
+                                        <th class="text-secondary opacity-7">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var setting in filteredSettings)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex px-2 py-1">
+                                                    <div class="d-flex flex-column justify-content-center">
+                                                        <h6 class="mb-0 text-sm">@setting.Category</h6>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <p class="text-xs font-weight-bold mb-0">@setting.Key</p>
+                                                @if (!string.IsNullOrEmpty(setting.Description))
+                                                {
+                                                    <p class="text-xs text-secondary mb-0">@setting.Description</p>
+                                                }
+                                            </td>
+                                            <td>
+                                                <p class="text-xs font-weight-bold mb-0">
+                                                    @(setting.ValueType == SettingValueType.Boolean ? 
+                                                        (bool.Parse(setting.Value) ? "✓ True" : "✗ False") : 
+                                                        (setting.Value.Length > 50 ? setting.Value.Substring(0, 50) + "..." : setting.Value))
+                                                </p>
+                                            </td>
+                                            <td>
+                                                <span class="badge badge-sm bg-gradient-info">@setting.ValueType</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge badge-sm @(setting.IsPublic ? "bg-gradient-success" : "bg-gradient-secondary")">
+                                                    @(setting.IsPublic ? "Public" : "Private")
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="text-secondary text-xs font-weight-bold">
+                                                    @setting.UpdatedAt.ToString("MMM dd, yyyy")
+                                                </span>
+                                            </td>
+                                            <td class="align-middle">
+                                                <button class="btn btn-link text-primary p-0 me-2" @onclick="() => EditSetting(setting)" title="Edit">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="btn btn-link text-danger p-0" @onclick="() => DeleteSetting(setting)" title="Delete">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @if (!filteredSettings.Any())
+                        {
+                            <div class="text-center py-4">
+                                <p class="text-muted">No settings found matching your criteria.</p>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Setting Modal -->
+<div class="modal fade" id="settingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@(isEditMode ? "Edit Setting" : "Create Setting")</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <EditForm Model="currentSettingDto" OnValidSubmit="SaveSetting">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="category">Category</label>
+                                <InputText id="category" class="form-control" @bind-Value="currentSettingDto.Category" placeholder="e.g., app, security, academic" />
+                                <ValidationMessage For="@(() => currentSettingDto.Category)" />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="key">Key</label>
+                                <InputText id="key" class="form-control" @bind-Value="currentSettingDto.Key" placeholder="e.g., max_file_size" />
+                                <ValidationMessage For="@(() => currentSettingDto.Key)" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <InputTextArea id="description" class="form-control" @bind-Value="currentSettingDto.Description" rows="2" placeholder="Optional description of this setting" />
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="form-group">
+                                <label for="value">Value</label>
+                                @if (currentSettingDto.ValueType == SettingValueType.Boolean)
+                                {
+                                    <select id="value" class="form-control" @bind="currentSettingDto.Value">
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                }
+                                else if (currentSettingDto.ValueType == SettingValueType.Json)
+                                {
+                                    <InputTextArea id="value" class="form-control" @bind-Value="currentSettingDto.Value" rows="4" placeholder="Enter valid JSON" />
+                                }
+                                else
+                                {
+                                    <InputText id="value" class="form-control" @bind-Value="currentSettingDto.Value" placeholder="Setting value" />
+                                }
+                                <ValidationMessage For="@(() => currentSettingDto.Value)" />
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="valueType">Value Type</label>
+                                <InputSelect id="valueType" class="form-control" @bind-Value="currentSettingDto.ValueType" @onchange="OnValueTypeChanged">
+                                    <option value="@SettingValueType.String">String</option>
+                                    <option value="@SettingValueType.Number">Number</option>
+                                    <option value="@SettingValueType.Boolean">Boolean</option>
+                                    <option value="@SettingValueType.Json">JSON</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <InputCheckbox id="isPublic" class="form-check-input" @bind-Value="currentSettingDto.IsPublic" />
+                                <label class="form-check-label" for="isPublic">
+                                    Public (accessible to all users)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <InputCheckbox id="isEncrypted" class="form-check-input" @bind-Value="currentSettingDto.IsEncrypted" />
+                                <label class="form-check-label" for="isEncrypted">
+                                    Encrypted (for sensitive data)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            }
+                            @(isEditMode ? "Update Setting" : "Create Setting")
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<SystemSetting> settings = new();
+    private List<SystemSetting> filteredSettings = new();
+    private List<string> categories = new();
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool isEditMode = false;
+    
+    private string selectedCategory = "";
+    private string searchTerm = "";
+    private string visibilityFilter = "";
+    
+    private SystemSettingDto currentSettingDto = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSettings();
+    }
+
+    private async Task LoadSettings()
+    {
+        try
+        {
+            isLoading = true;
+            settings = await SystemSettingsService.GetSystemSettingsAsync();
+            categories = settings.Select(s => s.Category).Distinct().OrderBy(c => c).ToList();
+            FilterSettings();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error loading settings: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void FilterSettings()
+    {
+        filteredSettings = settings.Where(s =>
+            (string.IsNullOrEmpty(selectedCategory) || s.Category.Equals(selectedCategory, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrEmpty(searchTerm) || 
+             s.Key.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+             (s.Description?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)) &&
+            (string.IsNullOrEmpty(visibilityFilter) || 
+             (visibilityFilter == "public" && s.IsPublic) ||
+             (visibilityFilter == "private" && !s.IsPublic))
+        ).OrderBy(s => s.Category).ThenBy(s => s.Key).ToList();
+
+        StateHasChanged();
+    }
+
+    private void ShowCreateModal()
+    {
+        isEditMode = false;
+        currentSettingDto = new SystemSettingDto();
+        InvokeAsync(() => JSRuntime.InvokeVoidAsync("showModal", "settingModal"));
+    }
+
+    private void EditSetting(SystemSetting setting)
+    {
+        isEditMode = true;
+        currentSettingDto = new SystemSettingDto
+        {
+            Id = setting.Id,
+            Category = setting.Category,
+            Key = setting.Key,
+            Value = setting.Value,
+            ValueType = setting.ValueType,
+            Description = setting.Description,
+            IsPublic = setting.IsPublic,
+            IsEncrypted = setting.IsEncrypted
+        };
+        InvokeAsync(() => JSRuntime.InvokeVoidAsync("showModal", "settingModal"));
+    }
+
+    private async Task SaveSetting()
+    {
+        try
+        {
+            isSaving = true;
+            await SystemSettingsService.SaveSystemSettingAsync(currentSettingDto);
+            await JSRuntime.InvokeVoidAsync("hideModal", "settingModal");
+            await LoadSettings();
+            await JSRuntime.InvokeVoidAsync("showToast", "success", $"Setting {(isEditMode ? "updated" : "created")} successfully!");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("showToast", "error", $"Error saving setting: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteSetting(SystemSetting setting)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Are you sure you want to delete the setting '{setting.Category}.{setting.Key}'?");
+        if (confirmed)
+        {
+            try
+            {
+                var success = await SystemSettingsService.DeleteSystemSettingAsync(setting.Id);
+                if (success)
+                {
+                    await LoadSettings();
+                    await JSRuntime.InvokeVoidAsync("showToast", "success", "Setting deleted successfully!");
+                }
+                else
+                {
+                    await JSRuntime.InvokeVoidAsync("showToast", "error", "Failed to delete setting");
+                }
+            }
+            catch (Exception ex)
+            {
+                await JSRuntime.InvokeVoidAsync("showToast", "error", $"Error deleting setting: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task RefreshSettings()
+    {
+        await LoadSettings();
+        await JSRuntime.InvokeVoidAsync("showToast", "info", "Settings refreshed!");
+    }
+
+    private void OnValueTypeChanged(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<SettingValueType>(e.Value?.ToString(), out var valueType))
+        {
+            currentSettingDto.ValueType = valueType;
+            
+            // Set default values for different types
+            if (valueType == SettingValueType.Boolean && string.IsNullOrEmpty(currentSettingDto.Value))
+            {
+                currentSettingDto.Value = "false";
+            }
+            else if (valueType == SettingValueType.Number && string.IsNullOrEmpty(currentSettingDto.Value))
+            {
+                currentSettingDto.Value = "0";
+            }
+            else if (valueType == SettingValueType.Json && string.IsNullOrEmpty(currentSettingDto.Value))
+            {
+                currentSettingDto.Value = "{}";
+            }
+        }
+    }
+}

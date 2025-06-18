@@ -1,0 +1,71 @@
+@using Campus360.Models
+@inject IJSRuntime JSRuntime
+
+<div class="modal fade" id="@ModalId" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@Title</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                @if (Departments.Any())
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Select Department</label>
+                        <select @bind="SelectedDepartmentId" class="form-select">
+                            <option value="">-- Select Department --</option>
+                            @foreach (var dept in Departments)
+                            {
+                                <option value="@dept.Id">@dept.Name (@dept.Code)</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="HandleAssign" disabled="@(string.IsNullOrEmpty(SelectedDepartmentId) || IsSubmitting)">
+                            @if (IsSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            Assign
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center">
+                        <i class="bi bi-exclamation-triangle text-warning" style="font-size: 2rem;"></i>
+                        <p class="mt-2">No departments available. Please create a department first.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string ModalId { get; set; } = "assignDepartmentModal";
+    [Parameter] public string Title { get; set; } = "Assign Department";
+    [Parameter] public List<Department> Departments { get; set; } = new();
+    [Parameter] public EventCallback<string> OnAssign { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+
+    private string SelectedDepartmentId { get; set; } = string.Empty;
+
+    public async Task ShowAsync()
+    {
+        SelectedDepartmentId = string.Empty;
+        await JSRuntime.InvokeVoidAsync("showModal", ModalId);
+    }
+
+    private async Task HandleAssign()
+    {
+        if (!string.IsNullOrEmpty(SelectedDepartmentId))
+        {
+            await OnAssign.InvokeAsync(SelectedDepartmentId);
+            SelectedDepartmentId = string.Empty;
+        }
+    }
+}

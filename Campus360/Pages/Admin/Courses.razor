@@ -1,0 +1,565 @@
+@page "/admin/courses"
+@layout ModernAdminLayout_Fixed
+@inject AdminService AdminService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Course Management - Campus360</PageTitle>
+
+<div class="modern-page-header">
+    <div class="modern-page-title">
+        <div class="modern-page-icon">
+            <i class="bi bi-book-half"></i>
+        </div>
+        <div>
+            <h1>Course Management</h1>
+            <p class="modern-page-subtitle">Create and manage academic courses</p>
+        </div>
+    </div>
+    <div class="modern-page-actions">
+        <button class="modern-btn modern-btn-primary" @onclick="ShowAddCourseModal">
+            <i class="bi bi-book-half"></i>
+            Create Course
+        </button>
+    </div>
+</div>
+
+<!-- Filter Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Filter by Department</label>
+                        <select @bind="SelectedDepartmentFilter" @bind:after="FilterCourses" class="form-select">
+                            <option value="">All Departments</option>
+                            @foreach (var dept in AllDepartments)
+                            {
+                                <option value="@dept.Id">@dept.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Filter by Assignment</label>
+                        <select @bind="SelectedAssignmentFilter" @bind:after="FilterCourses" class="form-select">
+                            <option value="">All Courses</option>
+                            <option value="assigned">Assigned to Teacher</option>
+                            <option value="unassigned">Unassigned</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Search Courses</label>
+                        <input type="text" @bind="SearchTerm" @bind:after="FilterCourses" class="form-control" placeholder="Search by name or code..." />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-outline-secondary w-100" @onclick="ClearFilters">
+                            <i class="bi bi-x-circle me-1"></i>Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>@FilteredCourses.Count</h4>
+                        <p class="mb-0">Total Courses</p>
+                    </div>
+                    <i class="bi bi-book" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>@FilteredCourses.Count(c => !string.IsNullOrEmpty(c.TeacherId))</h4>
+                        <p class="mb-0">Assigned Courses</p>
+                    </div>
+                    <i class="bi bi-person-check" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>@FilteredCourses.Count(c => string.IsNullOrEmpty(c.TeacherId))</h4>
+                        <p class="mb-0">Unassigned Courses</p>
+                    </div>
+                    <i class="bi bi-person-x" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>@FilteredCourses.Sum(c => c.CreditHours)</h4>
+                        <p class="mb-0">Total Credit Hours</p>
+                    </div>
+                    <i class="bi bi-clock" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Courses Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Courses List</h5>
+            </div>
+            <div class="card-body p-0">
+                @if (IsLoading)
+                {
+                    <div class="text-center p-4">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading courses...</p>
+                    </div>
+                }
+                else if (FilteredCourses.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Course</th>
+                                    <th>Department</th>
+                                    <th>Teacher</th>
+                                    <th>Semester</th>
+                                    <th>Credit Hours</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var course in FilteredCourses)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div>
+                                                <strong>@course.Name</strong>
+                                                <br><small class="text-muted">@course.Code</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @{
+                                                var department = AllDepartments.FirstOrDefault(d => d.Id == course.DepartmentId);
+                                            }
+                                            @if (department != null)
+                                            {
+                                                <span class="badge bg-info">@department.Code</span>
+                                                <br><small class="text-muted">@department.Name</small>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">Unknown</span>
+                                            }
+                                        </td>
+                                        <td>                                            @if (!string.IsNullOrEmpty(course.TeacherId))
+                                            {
+                                                var teacher = AllTeachers.FirstOrDefault(t => t.Id == course.TeacherId);
+                                                @if (teacher != null)
+                                                {
+                                                    <div>
+                                                        <strong>@teacher.FullName</strong>
+                                                        <br><small class="text-muted">@teacher.Email</small>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-warning">Teacher not found</span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">Unassigned</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">Semester @course.Semester</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary">@course.CreditHours CH</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-@(course.IsActive ? "success" : "secondary")">
+                                                @(course.IsActive ? "Active" : "Inactive")
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                @if (string.IsNullOrEmpty(course.TeacherId))
+                                                {
+                                                    <button class="btn btn-sm btn-outline-success" 
+                                                            @onclick="() => ShowAssignTeacherModal(course.Id)" 
+                                                            title="Assign Teacher">
+                                                        <i class="bi bi-person-plus"></i>
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="btn btn-sm btn-outline-warning" 
+                                                            @onclick="() => UnassignTeacher(course.Id)" 
+                                                            title="Unassign Teacher">
+                                                        <i class="bi bi-person-dash"></i>
+                                                    </button>
+                                                }
+                                                <button class="btn btn-sm btn-outline-primary" 
+                                                        @onclick="() => EditCourse(course)" 
+                                                        title="Edit Course">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-info" 
+                                                        @onclick="() => ViewCourseDetails(course)" 
+                                                        title="View Details">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center p-4">
+                        <i class="bi bi-book display-1 text-muted"></i>
+                        <h5 class="mt-3">No courses found</h5>
+                        <p class="text-muted">No courses match your current filter criteria.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Course Details Modal -->
+@if (SelectedCourse != null)
+{
+    <div class="modal fade" id="courseDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@SelectedCourse.Name Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6>Course Information</h6>
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>Name:</strong></td>
+                                    <td>@SelectedCourse.Name</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Code:</strong></td>
+                                    <td>@SelectedCourse.Code</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Department:</strong></td>
+                                    <td>
+                                        @{
+                                            var dept = AllDepartments.FirstOrDefault(d => d.Id == SelectedCourse.DepartmentId);
+                                        }
+                                        @(dept?.Name ?? "Unknown")
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Semester:</strong></td>
+                                    <td>@SelectedCourse.Semester</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Credit Hours:</strong></td>
+                                    <td>@SelectedCourse.CreditHours</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Status:</strong></td>
+                                    <td>
+                                        <span class="badge bg-@(SelectedCourse.IsActive ? "success" : "secondary")">
+                                            @(SelectedCourse.IsActive ? "Active" : "Inactive")
+                                        </span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Assignment Information</h6>                            @if (!string.IsNullOrEmpty(SelectedCourse.TeacherId))
+                            {
+                                var teacher = AllTeachers.FirstOrDefault(t => t.Id == SelectedCourse.TeacherId);
+                                @if (teacher != null)
+                                {
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <h6 class="card-title">Assigned Teacher</h6>
+                                            <p class="card-text">
+                                                <strong>@teacher.FullName</strong><br>
+                                                <small class="text-muted">@teacher.Email</small><br>
+                                                <small class="text-muted">Department: @teacher.DepartmentName</small>
+                                            </p>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="alert alert-warning">
+                                        <i class="bi bi-exclamation-triangle me-2"></i>
+                                        Assigned teacher not found in system
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    This course is not assigned to any teacher yet.
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    
+                    @if (!string.IsNullOrEmpty(SelectedCourse.Description))
+                    {
+                        <div class="mb-4">
+                            <h6>Description</h6>
+                            <p class="text-muted">@SelectedCourse.Description</p>
+                        </div>
+                    }
+
+                    <div class="mb-2">
+                        <small class="text-muted">Created: @SelectedCourse.CreatedAt.ToString("MMMM dd, yyyy")</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" @onclick="() => EditCourse(SelectedCourse)" data-bs-dismiss="modal">
+                        <i class="bi bi-pencil me-1"></i>Edit Course
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Course Modal -->
+<CourseModal @ref="CourseModalRef" 
+             Departments="AllDepartments" 
+             OnCourseSaved="OnCourseSaved" />
+
+<!-- Assign Teacher Modal -->
+<AssignTeacherModal @ref="AssignTeacherModalRef" 
+                    ModalId="assignTeacherModal"
+                    Title="Assign Teacher to Course"
+                    Teachers="AvailableTeachers"
+                    OnAssignment="OnTeacherAssigned" />
+
+@code {
+    private List<Course> AllCourses = new();
+    private List<Course> FilteredCourses = new();
+    private List<Department> AllDepartments = new();
+    private List<UserManagementModel> AllTeachers = new();
+    private List<UserManagementModel> AvailableTeachers = new();
+    private bool IsLoading = true;
+    
+    // Filter properties
+    private string SelectedDepartmentFilter = "";
+    private string SelectedAssignmentFilter = "";
+    private string SearchTerm = "";
+    
+    // Modal references and state
+    private CourseModal? CourseModalRef;
+    private AssignTeacherModal? AssignTeacherModalRef;
+    private Course? SelectedCourse;
+    private string SelectedCourseIdForAssignment = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        IsLoading = true;
+        try
+        {
+            AllCourses = await AdminService.GetCoursesAsync();
+            AllDepartments = await AdminService.GetDepartmentsAsync();
+            AllTeachers = (await AdminService.GetUsersAsync("teacher")).Where(t => t.IsVerified && t.IsActive).ToList();
+            FilteredCourses = AllCourses.ToList();
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private void FilterCourses()
+    {
+        var query = AllCourses.AsQueryable();
+
+        // Filter by department
+        if (!string.IsNullOrEmpty(SelectedDepartmentFilter))
+            query = query.Where(c => c.DepartmentId == SelectedDepartmentFilter);
+
+        // Filter by assignment status
+        if (!string.IsNullOrEmpty(SelectedAssignmentFilter))
+        {
+            if (SelectedAssignmentFilter == "assigned")
+                query = query.Where(c => !string.IsNullOrEmpty(c.TeacherId));
+            else if (SelectedAssignmentFilter == "unassigned")
+                query = query.Where(c => string.IsNullOrEmpty(c.TeacherId));
+        }
+
+        // Filter by search term
+        if (!string.IsNullOrEmpty(SearchTerm))
+        {
+            var searchLower = SearchTerm.ToLower();
+            query = query.Where(c => c.Name.ToLower().Contains(searchLower) || 
+                                   c.Code.ToLower().Contains(searchLower));
+        }
+
+        FilteredCourses = query.OrderBy(c => c.Name).ToList();
+    }
+
+    private void ClearFilters()
+    {
+        SelectedDepartmentFilter = "";
+        SelectedAssignmentFilter = "";
+        SearchTerm = "";
+        FilteredCourses = AllCourses.ToList();
+    }
+
+    private async Task ShowAddCourseModal()
+    {
+        if (CourseModalRef != null)
+        {
+            await CourseModalRef.ShowAsync();
+        }
+    }
+
+    private async Task EditCourse(Course course)
+    {
+        if (CourseModalRef != null)
+        {
+            await CourseModalRef.ShowAsync(course);
+        }
+    }
+
+    private async Task ViewCourseDetails(Course course)
+    {
+        SelectedCourse = course;
+        await JSRuntime.InvokeVoidAsync("showModal", "courseDetailsModal");
+    }
+
+    private async Task ShowAssignTeacherModal(string courseId)
+    {
+        var course = AllCourses.FirstOrDefault(c => c.Id == courseId);
+        if (course != null)
+        {
+            // Filter teachers by department if the course has a department
+            AvailableTeachers = string.IsNullOrEmpty(course.DepartmentId) 
+                ? AllTeachers.ToList()
+                : AllTeachers.Where(t => t.DepartmentId == course.DepartmentId).ToList();
+
+            SelectedCourseIdForAssignment = courseId;
+            if (AssignTeacherModalRef != null)
+            {
+                await AssignTeacherModalRef.ShowAsync();
+            }
+        }
+    }
+
+    private async Task UnassignTeacher(string courseId)
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to unassign the teacher from this course?"))
+        {
+            if (await AdminService.AssignCourseToTeacherAsync(courseId, ""))
+            {
+                await LoadData();
+                await ShowSuccessMessage("Teacher unassigned successfully!");
+            }
+        }
+    }    private async Task OnTeacherAssigned(string teacherId)
+    {
+        if (!string.IsNullOrEmpty(SelectedCourseIdForAssignment) && !string.IsNullOrEmpty(teacherId))
+        {
+            try
+            {
+                if (await AdminService.AssignCourseToTeacherAsync(SelectedCourseIdForAssignment, teacherId))
+                {
+                    await LoadData();
+                    await ShowSuccessMessage("Teacher assigned successfully!");
+                }
+                else
+                {
+                    await ShowErrorMessage("Failed to assign teacher. Please check if the course and teacher exist.");
+                }
+            }
+            catch (Exception ex)
+            {
+                await ShowErrorMessage($"Error assigning teacher: {ex.Message}");
+            }
+        }
+        else
+        {
+            await ShowErrorMessage("Invalid course or teacher selection.");
+        }
+        SelectedCourseIdForAssignment = "";
+    }private async Task OnCourseSaved(Course course)
+    {
+        bool success = false;
+        
+        if (string.IsNullOrEmpty(course.Id))
+        {
+            // Creating new course
+            success = await AdminService.CreateCourseAsync(course);
+        }
+        else
+        {
+            // Updating existing course
+            success = await AdminService.UpdateCourseAsync(course);
+        }
+
+        if (success)
+        {
+            await LoadData();
+            await ShowSuccessMessage(string.IsNullOrEmpty(course.Id) ? "Course created successfully!" : "Course updated successfully!");
+        }
+        else
+        {
+            await ShowErrorMessage("Failed to save course. Please try again.");
+        }
+    }
+
+    private async Task ShowSuccessMessage(string message)
+    {
+        await JSRuntime.InvokeVoidAsync("showToast", message, "success");
+    }
+
+    private async Task ShowErrorMessage(string message)
+    {
+        await JSRuntime.InvokeVoidAsync("showToast", message, "error");
+    }
+}

@@ -1,0 +1,348 @@
+@page "/admin/file-center"
+@layout ModernAdminLayout_Fixed
+@using Campus360.Models
+@using Campus360.Services
+@using Campus360.Components.FileManagement
+@inject FileManagementService FileService
+@inject UserContextService UserContext
+@inject IJSRuntime JSRuntime
+@attribute [Authorize]
+
+<PageTitle>File Management Center - Campus360</PageTitle>
+
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">📁 File Management Center</h1>
+            <p class="text-muted">Centralized file upload, organization, and distribution system</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" @onclick="RefreshFiles">
+                <i class="fas fa-sync-alt me-2"></i>Refresh
+            </button>
+            <button class="btn btn-success" @onclick="ShowBulkUploadModal">
+                <i class="fas fa-upload me-2"></i>Bulk Upload
+            </button>
+            <button class="btn btn-primary" @onclick="ShowUploadModal">
+                <i class="fas fa-plus me-2"></i>Upload File
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    @if (fileStatistics != null)
+    {
+        <div class="row mb-4">
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card bg-gradient-primary text-white h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-grow-1">
+                                <h6 class="card-title text-white-50 mb-1">Total Files</h6>
+                                <h3 class="mb-0">@fileStatistics.TotalFiles</h3>
+                                <small class="text-white-75">
+                                    <i class="fas fa-arrow-up me-1"></i>
+                                    @fileStatistics.FilesToday today
+                                </small>
+                            </div>
+                            <div class="text-white-50">
+                                <i class="fas fa-file fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card bg-gradient-success text-white h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-grow-1">
+                                <h6 class="card-title text-white-50 mb-1">Total Downloads</h6>
+                                <h3 class="mb-0">@fileStatistics.TotalDownloads</h3>
+                                <small class="text-white-75">
+                                    <i class="fas fa-arrow-up me-1"></i>
+                                    @fileStatistics.DownloadsToday today
+                                </small>
+                            </div>
+                            <div class="text-white-50">
+                                <i class="fas fa-download fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card bg-gradient-info text-white h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-grow-1">
+                                <h6 class="card-title text-white-50 mb-1">Storage Used</h6>
+                                <h3 class="mb-0">@fileStatistics.TotalStorageFormatted</h3>
+                                <small class="text-white-75">
+                                    <i class="fas fa-server me-1"></i>
+                                    Space utilized
+                                </small>
+                            </div>
+                            <div class="text-white-50">
+                                <i class="fas fa-hdd fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card bg-gradient-warning text-white h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-grow-1">
+                                <h6 class="card-title text-white-50 mb-1">Active Notices</h6>
+                                <h3 class="mb-0">@fileStatistics.TotalNotices</h3>
+                                <small class="text-white-75">
+                                    <i class="fas fa-bell me-1"></i>
+                                    @fileStatistics.ExpiringNotices.Count expiring
+                                </small>
+                            </div>
+                            <div class="text-white-50">
+                                <i class="fas fa-bullhorn fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- File Type Tabs -->
+    <div class="card">
+        <div class="card-header bg-white border-bottom">
+            <ul class="nav nav-tabs card-header-tabs" id="fileTypeTabs" role="tablist">                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(selectedTab == "all" ? "active" : "")" 
+                            @onclick='() => ChangeTab("all")' type="button">
+                        <i class="fas fa-folder me-2"></i>All Files (@allFiles.Count)
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(selectedTab == "assignments" ? "active" : "")" 
+                            @onclick='() => ChangeTab("assignments")' type="button">
+                        <i class="fas fa-tasks me-2"></i>Assignments (@fileStatistics?.TotalAssignments ?? 0)
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(selectedTab == "notes" ? "active" : "")" 
+                            @onclick='() => ChangeTab("notes")' type="button">
+                        <i class="fas fa-book me-2"></i>Notes (@fileStatistics?.TotalNotes ?? 0)
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(selectedTab == "results" ? "active" : "")" 
+                            @onclick='() => ChangeTab("results")' type="button">
+                        <i class="fas fa-chart-bar me-2"></i>Results (@fileStatistics?.TotalResults ?? 0)
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(selectedTab == "notices" ? "active" : "")" 
+                            @onclick='() => ChangeTab("notices")' type="button">
+                        <i class="fas fa-bullhorn me-2"></i>Notices (@fileStatistics?.TotalNotices ?? 0)
+                    </button>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body">
+            <!-- File Browser Component -->
+            <FileBrowser @ref="fileBrowserRef"
+                        Files="filteredFiles" 
+                        ShowUploadButton="true"
+                        AllowDelete="true"
+                        AllowEdit="true"
+                        OnFileSelected="@(fileId => OnFileSelected(filteredFiles.FirstOrDefault(f => f.Id == fileId)))"
+                        OnFileDeleted="OnFileDeleted"
+                        OnFileUploaded="OnFileUploaded" />
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+@if (showUploadModal)
+{
+    <FileUploadModal @ref="uploadModalRef"
+                    IsVisible="showUploadModal"
+                    OnClose="CloseUploadModal"
+                    OnFileUploaded="OnFileUploaded" />
+}
+
+<!-- File View Modal -->
+@if (showFileViewModal && selectedFile != null)
+{
+    <FileViewModal @ref="fileViewModalRef"
+                  File="selectedFile"
+                  IsVisible="showFileViewModal"
+                  OnClose="CloseFileViewModal"
+                  OnFileDeleted="OnFileDeleted" />
+}
+
+@code {
+    private FileBrowser? fileBrowserRef;
+    private FileUploadModal? uploadModalRef;
+    private FileViewModal? fileViewModalRef;
+    
+    private List<FileDocument> allFiles = new();
+    private List<FileDocument> filteredFiles = new();
+    private FileStatistics? fileStatistics;
+    private FileDocument? selectedFile;
+    
+    private string selectedTab = "all";
+    private bool showUploadModal = false;
+    private bool showFileViewModal = false;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFiles();
+        await LoadFileStatistics();
+        isLoading = false;
+    }
+
+    private async Task LoadFiles()
+    {
+        try
+        {
+            var userProfile = await UserContext.GetCurrentUserAsync();
+            if (userProfile != null)
+            {
+                allFiles = await FileService.GetUserAccessibleFilesAsync(
+                    userProfile.Id, 
+                    userProfile.Role);
+                FilterFilesByTab();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading files: {ex.Message}");
+        }
+    }
+
+    private async Task LoadFileStatistics()
+    {
+        try
+        {
+            var userProfile = await UserContext.GetCurrentUserAsync();
+            if (userProfile != null)
+            {
+                fileStatistics = await FileService.GetFileStatisticsAsync(
+                    userProfile.Id, 
+                    userProfile.Role);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading file statistics: {ex.Message}");
+        }
+    }
+
+    private void ChangeTab(string tab)
+    {
+        selectedTab = tab;
+        FilterFilesByTab();
+        StateHasChanged();
+    }
+
+    private void FilterFilesByTab()
+    {
+        filteredFiles = selectedTab switch
+        {
+            "assignments" => allFiles.Where(f => f.FileType == FileType.Assignment).ToList(),
+            "notes" => allFiles.Where(f => f.FileType == FileType.Notes || f.FileType == FileType.StudyMaterial).ToList(),
+            "results" => allFiles.Where(f => f.FileType == FileType.Result).ToList(),
+            "notices" => allFiles.Where(f => f.FileType == FileType.Notice || f.FileType == FileType.Circular).ToList(),
+            _ => allFiles
+        };
+    }
+
+    private async Task RefreshFiles()
+    {
+        isLoading = true;
+        await LoadFiles();
+        await LoadFileStatistics();
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private void ShowUploadModal()
+    {
+        showUploadModal = true;
+    }
+
+    private void ShowBulkUploadModal()
+    {
+        // TODO: Implement bulk upload modal
+        Console.WriteLine("Bulk upload modal not yet implemented");
+    }
+
+    private void CloseUploadModal()
+    {
+        showUploadModal = false;
+    }
+
+    private async Task OnFileUploaded()
+    {
+        showUploadModal = false;
+        await RefreshFiles();
+    }
+
+    private void OnFileSelected(FileDocument file)
+    {
+        selectedFile = file;
+        showFileViewModal = true;
+    }
+
+    private void CloseFileViewModal()
+    {
+        showFileViewModal = false;
+        selectedFile = null;
+    }
+
+    private async Task OnFileDeleted(string fileId)
+    {
+        showFileViewModal = false;
+        selectedFile = null;
+        await RefreshFiles();
+    }
+}
+
+<style>
+    .bg-gradient-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .bg-gradient-success {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+    
+    .bg-gradient-info {
+        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    }
+    
+    .bg-gradient-warning {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    }
+    
+    .nav-tabs .nav-link.active {
+        color: #495057;
+        background-color: #fff;
+        border-color: #dee2e6 #dee2e6 #fff;
+        font-weight: 600;
+    }
+    
+    .nav-tabs .nav-link {
+        color: #6c757d;
+        border: 1px solid transparent;
+        border-top-left-radius: 0.25rem;
+        border-top-right-radius: 0.25rem;
+    }
+    
+    .nav-tabs .nav-link:hover {
+        border-color: #e9ecef #e9ecef #dee2e6;
+        color: #495057;
+    }
+</style>

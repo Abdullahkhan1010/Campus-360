@@ -1,0 +1,317 @@
+@inherits LayoutComponentBase
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="admin-layout" data-theme="@currentTheme">
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay @(isMobileSidebarOpen ? "active" : "")" @onclick="ToggleMobileSidebar"></div>
+    
+    <!-- Modern Sidebar -->
+    <nav class="modern-sidebar @(isSidebarCollapsed ? "collapsed" : "") @(isMobileSidebarOpen ? "open" : "")">>
+        <!-- Sidebar Header -->
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <i class="bi bi-mortarboard-fill"></i>
+            </div>
+            <h1 class="sidebar-title sidebar-text">Campus360</h1>
+        </div>
+
+        <!-- Sidebar Navigation -->
+        <div class="sidebar-nav">
+            <!-- Dashboard Section -->
+            <div class="nav-section">
+                <div class="nav-section-title sidebar-text">Dashboard</div>
+                <div class="nav-item">
+                    <NavLink href="/admin/dashboard" class="nav-link" Match="NavLinkMatch.All">
+                        <i class="nav-icon bi bi-grid-1x2-fill"></i>
+                        <span class="nav-text sidebar-text">Overview</span>
+                    </NavLink>
+                </div>
+                <div class="nav-item">
+                    <NavLink href="/admin/reports" class="nav-link">
+                        <i class="nav-icon bi bi-graph-up"></i>
+                        <span class="nav-text sidebar-text">Reports</span>
+                    </NavLink>
+                </div>
+            </div>
+
+            <!-- User Management Section -->
+            <div class="nav-section">
+                <div class="nav-section-title sidebar-text">User Management</div>
+                <div class="nav-item">
+                    <NavLink href="/admin/users" class="nav-link">
+                        <i class="nav-icon bi bi-people-fill"></i>
+                        <span class="nav-text sidebar-text">Users</span>
+                        @if (pendingUsersCount > 0)
+                        {
+                            <span class="nav-badge">@pendingUsersCount</span>
+                        }
+                    </NavLink>
+                </div>
+                <div class="nav-item">
+                    <NavLink href="/admin/departments" class="nav-link">
+                        <i class="nav-icon bi bi-building"></i>
+                        <span class="nav-text sidebar-text">Departments</span>
+                    </NavLink>
+                </div>
+            </div>
+
+            <!-- Academic Section -->
+            <div class="nav-section">
+                <div class="nav-section-title sidebar-text">Academic</div>
+                <div class="nav-item">
+                    <NavLink href="/admin/courses" class="nav-link">
+                        <i class="nav-icon bi bi-book-fill"></i>
+                        <span class="nav-text sidebar-text">Courses</span>
+                    </NavLink>
+                </div>
+                <div class="nav-item">
+                    <NavLink href="/admin/calendar" class="nav-link">
+                        <i class="nav-icon bi bi-calendar-event"></i>
+                        <span class="nav-text sidebar-text">Calendar</span>
+                    </NavLink>
+                </div>
+            </div>
+
+            <!-- System Section -->
+            <div class="nav-section">
+                <div class="nav-section-title sidebar-text">System</div>
+                <div class="nav-item">
+                    <NavLink href="/admin/automation" class="nav-link">
+                        <i class="nav-icon bi bi-robot"></i>
+                        <span class="nav-text sidebar-text">Automation</span>
+                    </NavLink>
+                </div>
+                <div class="nav-submenu">
+                    <div class="nav-item">
+                        <NavLink href="/admin/automation-rules" class="nav-link nav-sublink">
+                            <i class="nav-icon bi bi-gear"></i>
+                            <span class="nav-text sidebar-text">Rules</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item">
+                        <NavLink href="/admin/automation-logs" class="nav-link nav-sublink">
+                            <i class="nav-icon bi bi-journal-text"></i>
+                            <span class="nav-text sidebar-text">Logs</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item">
+                        <NavLink href="/admin/automation-test" class="nav-link nav-sublink">
+                            <i class="nav-icon bi bi-play-circle"></i>
+                            <span class="nav-text sidebar-text">Test</span>
+                        </NavLink>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <NavLink href="/admin/file-center" class="nav-link">
+                        <i class="nav-icon bi bi-folder"></i>
+                        <span class="nav-text sidebar-text">File Center</span>
+                    </NavLink>
+                </div>
+                <div class="nav-item">
+                    <NavLink href="/admin/system-settings" class="nav-link">
+                        <i class="nav-icon bi bi-gear-wide-connected"></i>
+                        <span class="nav-text sidebar-text">Settings</span>
+                    </NavLink>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div class="admin-content">
+        <!-- Modern Top Navbar -->
+        <header class="modern-navbar">
+            <div class="navbar-left">
+                <button class="sidebar-toggle" @onclick="ToggleSidebar" title="Toggle Sidebar">
+                    <i class="bi bi-list"></i>
+                </button>
+                
+                <button class="mobile-sidebar-toggle d-md-none" @onclick="ToggleMobileSidebar" title="Menu">
+                    <i class="bi bi-grid-3x3-gap"></i>
+                </button>
+            </div>
+
+            <div class="navbar-center">
+                <div class="search-container">
+                    <i class="bi bi-search search-icon"></i>
+                    <input type="text" class="search-input" placeholder="Search..." @bind="searchQuery" @oninput="OnSearchInput" />
+                </div>
+            </div>
+
+            <div class="navbar-right">
+                <button class="navbar-action" @onclick="ToggleNotifications" title="Notifications">
+                    <i class="bi bi-bell"></i>
+                    @if (notificationCount > 0)
+                    {
+                        <span class="notification-badge">@notificationCount</span>
+                    }
+                </button>
+
+                <button class="navbar-action" @onclick="ToggleTheme" title="Toggle Dark Mode">
+                    <i class="bi bi-@(currentTheme == "light" ? "moon" : "sun")"></i>
+                </button>
+
+                <div class="user-menu">
+                    <button class="user-avatar" @onclick="ToggleUserMenu" title="User Menu">
+                        <span class="avatar-text">@GetUserInitials()</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <main class="page-content">
+            @Body
+        </main>
+    </div>
+</div>
+
+<!-- Mobile Sidebar Overlay -->
+@if (isMobileSidebarOpen)
+{
+    <div class="mobile-overlay" @onclick="CloseMobileSidebar"></div>
+}
+
+<style>
+    .admin-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .page-content {
+        flex: 1;
+        padding: var(--space-xl);
+        background-color: var(--bg-primary);
+        overflow-y: auto;
+    }
+
+    .mobile-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: var(--z-modal-backdrop);
+        backdrop-filter: blur(4px);
+    }    /* Responsive design - Commented out to fix build */
+    /* media (max-width: 768px) {
+        .page-content {
+            padding: var(--space-lg) var(--space-md);
+        }
+        
+        .modern-sidebar {
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .modern-sidebar.open {
+            transform: translateX(0);
+        }
+        
+        .navbar-center {
+            display: none;
+        }
+        
+        .sidebar-text {
+            display: block;
+        }
+    } */    /* media (max-width: 480px) {
+        .page-content {
+            padding: var(--space-md) var(--space-sm);
+        }
+        
+        .modern-page-header {
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+        
+        .modern-page-actions {
+            width: 100%;
+        }
+        
+        .modern-btn {
+            width: 100%;
+        }
+        
+        .modern-stats-grid {
+            grid-template-columns: 1fr;
+        }
+    } */
+</style>
+
+@code {
+    private bool isSidebarCollapsed = false;
+    private bool isMobileSidebarOpen = false;
+    private string currentTheme = "light";
+    private string searchQuery = string.Empty;
+    private int notificationCount = 3; // This should come from a service
+    private int pendingUsersCount = 2; // This should come from a service
+    
+    protected override async Task OnInitializedAsync()
+    {
+        // Load theme preference from localStorage
+        currentTheme = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "theme") ?? "light";
+        await ApplyTheme();
+    }
+
+    private async Task ToggleSidebar()
+    {
+        isSidebarCollapsed = !isSidebarCollapsed;
+        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "sidebarCollapsed", isSidebarCollapsed.ToString());
+    }
+
+    private void ToggleMobileSidebar()
+    {
+        isMobileSidebarOpen = !isMobileSidebarOpen;
+    }
+
+    private async Task ToggleTheme()
+    {
+        currentTheme = currentTheme == "light" ? "dark" : "light";
+        await ApplyTheme();
+        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "theme", currentTheme);
+    }
+
+    private async Task ApplyTheme()
+    {
+        await JSRuntime.InvokeVoidAsync("document.documentElement.setAttribute", "data-theme", currentTheme);
+    }
+
+    private void ToggleNotifications()
+    {
+        // TODO: Implement notification panel
+        notificationCount = 0; // Reset count when viewed
+    }
+
+    private void ToggleUserMenu()
+    {
+        // TODO: Implement user dropdown menu
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        searchQuery = e.Value?.ToString() ?? string.Empty;
+        // TODO: Implement real-time search
+    }
+
+    private void CloseMobileSidebar()
+    {
+        isMobileSidebarOpen = false;
+    }
+
+    private string GetUserInitials()
+    {
+        // TODO: Get from authentication service
+        return "AD"; // Admin
+    }
+
+    public void Dispose()
+    {
+        // Cleanup if needed
+    }
+}

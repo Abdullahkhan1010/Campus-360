@@ -1,0 +1,658 @@
+@page "/admin/automation-rules"
+@layout ModernAdminLayout_Fixed
+@using Campus360.Models
+@using Campus360.Services
+@using Microsoft.JSInterop
+@inject AutomationEngineService AutomationEngine
+@inject IJSRuntime JSRuntime
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-gradient-primary text-white">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <h4 class="mb-0">
+                                <i class="fas fa-cogs me-2"></i>
+                                Automation Rules Management
+                            </h4>
+                            <small class="opacity-75">Configure and manage automation rules</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-light btn-sm" @onclick="RefreshData">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <button class="btn btn-success btn-sm" @onclick="CreateNewRule">
+                                <i class="fas fa-plus"></i> New Rule
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Loading automation rules...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            @errorMessage
+        </div>
+    }
+    else
+    {
+        <!-- Rules Overview -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-list fa-2x text-primary mb-2"></i>
+                        <h3 class="fw-bold">@(automationRules?.Count ?? 0)</h3>
+                        <p class="text-muted mb-0">Total Rules</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-play fa-2x text-success mb-2"></i>
+                        <h3 class="fw-bold">@(automationRules?.Count(r => r.IsActive) ?? 0)</h3>
+                        <p class="text-muted mb-0">Active Rules</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-pause fa-2x text-warning mb-2"></i>
+                        <h3 class="fw-bold">@(automationRules?.Count(r => !r.IsActive) ?? 0)</h3>
+                        <p class="text-muted mb-0">Inactive Rules</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-bell fa-2x text-info mb-2"></i>
+                        <h3 class="fw-bold">@(automationRules?.Sum(r => r.TriggerCount) ?? 0)</h3>
+                        <p class="text-muted mb-0">Total Triggers</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Automation Rules Table -->
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>
+                    Automation Rules
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                @if (automationRules != null && automationRules.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th>Rule</th>
+                                    <th>Trigger</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Triggers</th>
+                                    <th>Last Triggered</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var rule in automationRules)
+                                {
+                                    <tr class="@(rule.IsActive ? "" : "table-secondary")">
+                                        <td>
+                                            <div class="fw-medium">@rule.Name</div>
+                                            <small class="text-muted">@rule.Description</small>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info">
+                                                @GetTriggerDisplayName(rule.Trigger)
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge @GetPriorityBadgeClass(rule.Priority)">
+                                                @rule.Priority.ToString().ToUpper()
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @if (rule.IsActive)
+                                            {
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-play me-1"></i>ACTIVE
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">
+                                                    <i class="fas fa-pause me-1"></i>INACTIVE
+                                                </span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="fw-bold">@rule.TriggerCount</span>
+                                        </td>
+                                        <td>
+                                            @if (rule.LastTriggered.HasValue)
+                                            {
+                                                <small class="text-muted">
+                                                    @rule.LastTriggered.Value.ToString("MMM dd, HH:mm")
+                                                </small>
+                                            }
+                                            else
+                                            {
+                                                <small class="text-muted">Never</small>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-info" @onclick="() => ViewRuleDetails(rule)">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                                <button class="btn btn-outline-primary" @onclick="() => EditRule(rule)">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="btn @(rule.IsActive ? "btn-outline-warning" : "btn-outline-success")" 
+                                                        @onclick="() => ToggleRule(rule.Id)">
+                                                    <i class="fas @(rule.IsActive ? "fa-pause" : "fa-play")"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No automation rules found</h5>
+                        <p class="text-muted">Create your first automation rule to get started.</p>
+                        <button class="btn btn-primary" @onclick="CreateNewRule">
+                            <i class="fas fa-plus me-1"></i> Create Rule
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Rule Details Modal -->
+@if (selectedRule != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Rule Details: @selectedRule.Name
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Basic Information</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td class="fw-medium">Name:</td>
+                                    <td>@selectedRule.Name</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-medium">Description:</td>
+                                    <td>@selectedRule.Description</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-medium">Trigger:</td>
+                                    <td>@GetTriggerDisplayName(selectedRule.Trigger)</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-medium">Priority:</td>
+                                    <td>
+                                        <span class="badge @GetPriorityBadgeClass(selectedRule.Priority)">
+                                            @selectedRule.Priority.ToString().ToUpper()
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-medium">Status:</td>
+                                    <td>
+                                        @if (selectedRule.IsActive)
+                                        {
+                                            <span class="badge bg-success">ACTIVE</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">INACTIVE</span>
+                                        }
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Statistics</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td class="fw-medium">Trigger Count:</td>
+                                    <td>@selectedRule.TriggerCount</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-medium">Last Triggered:</td>
+                                    <td>
+                                        @if (selectedRule.LastTriggered.HasValue)
+                                        {
+                                            @selectedRule.LastTriggered.Value.ToString("MMM dd, yyyy HH:mm:ss")
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">Never</span>
+                                        }
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-medium">Created:</td>
+                                    <td>@selectedRule.CreatedAt.ToString("MMM dd, yyyy HH:mm")</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-medium">Created By:</td>
+                                    <td>@selectedRule.CreatedBy</td>
+                                </tr>
+                                @if (selectedRule.DelayBeforeTrigger.HasValue)
+                                {
+                                    <tr>
+                                        <td class="fw-medium">Delay:</td>
+                                        <td>@selectedRule.DelayBeforeTrigger.Value</td>
+                                    </tr>
+                                }
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <h6>Message Template</h6>
+                    <div class="alert alert-info">
+                        @selectedRule.MessageTemplate
+                    </div>
+                    
+                    @if (!string.IsNullOrEmpty(selectedRule.TriggerCondition))
+                    {
+                        <h6>Trigger Condition</h6>
+                        <code>@selectedRule.TriggerCondition</code>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(selectedRule.TargetRole))
+                    {
+                        <h6>Target Role</h6>
+                        <span class="badge bg-primary">@selectedRule.TargetRole</span>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" @onclick="() => EditRule(selectedRule)">
+                        <i class="fas fa-edit me-1"></i> Edit
+                    </button>
+                    <button class="btn @(selectedRule.IsActive ? "btn-warning" : "btn-success")" 
+                            @onclick="() => ToggleRule(selectedRule.Id)">
+                        <i class="fas @(selectedRule.IsActive ? "fa-pause" : "fa-play") me-1"></i>
+                        @(selectedRule.IsActive ? "Deactivate" : "Activate")
+                    </button>
+                    <button class="btn btn-secondary" @onclick="CloseModal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Create/Edit Rule Modal -->
+@if (isCreatingRule || editingRule != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas @(isCreatingRule ? "fa-plus" : "fa-edit") me-2"></i>
+                        @(isCreatingRule ? "Create New Rule" : "Edit Rule")
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelEdit"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Rule Name *</label>
+                        <input type="text" class="form-control" @bind="ruleForm.Name" placeholder="Enter rule name">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" rows="2" @bind="ruleForm.Description" placeholder="Enter rule description"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Trigger Type *</label>
+                                <select class="form-select" @bind="ruleForm.TriggerType">
+                                    <option value="">Select trigger type</option>
+                                    <option value="AttendanceBelowThreshold">Low Attendance</option>
+                                    <option value="ResultUploaded">Result Uploaded</option>
+                                    <option value="AssignmentUploaded">Assignment Upload</option>
+                                    <option value="AssignmentDeadlineApproaching">Deadline Reminder</option>
+                                    <option value="ClassCancelled">Class Cancelled</option>
+                                    <option value="NoticePublished">Notice Published</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Priority *</label>
+                                <select class="form-select" @bind="ruleForm.Priority">
+                                    <option value="Low">Low</option>
+                                    <option value="Normal">Normal</option>
+                                    <option value="High">High</option>
+                                    <option value="Critical">Critical</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Message Template *</label>
+                        <textarea class="form-control" rows="3" @bind="ruleForm.MessageTemplate" 
+                                  placeholder="Enter message template with placeholders like {course_name}, {student_name}, etc."></textarea>
+                        <div class="form-text">
+                            Use placeholders like {course_name}, {student_name}, {attendance_percentage}, etc.
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Target Role</label>
+                                <select class="form-select" @bind="ruleForm.TargetRole">
+                                    <option value="">All Roles</option>
+                                    <option value="student">Students</option>
+                                    <option value="teacher">Teachers</option>
+                                    <option value="admin">Admins</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Notification Type</label>
+                                <select class="form-select" @bind="ruleForm.NotificationType">
+                                    <option value="Info">Info</option>
+                                    <option value="Warning">Warning</option>
+                                    <option value="Alert">Alert</option>
+                                    <option value="Assignment">Assignment</option>
+                                    <option value="Result">Result</option>
+                                    <option value="Deadline">Deadline</option>
+                                    <option value="Notice">Notice</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Trigger Condition</label>
+                        <input type="text" class="form-control" @bind="ruleForm.TriggerCondition" 
+                               placeholder="e.g., attendance_percentage < 75">
+                        <div class="form-text">
+                            Optional condition for when this rule should trigger
+                        </div>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" @bind="ruleForm.IsActive" id="isActiveCheck">
+                        <label class="form-check-label" for="isActiveCheck">
+                            Active (rule will trigger when conditions are met)
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" @onclick="SaveRule" disabled="@(!IsRuleFormValid())">
+                        <i class="fas fa-save me-1"></i>
+                        @(isCreatingRule ? "Create Rule" : "Update Rule")
+                    </button>
+                    <button class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AutomationRule>? automationRules;
+    private AutomationRule? selectedRule;
+    private AutomationRule? editingRule;
+    private bool isCreatingRule = false;
+    private bool isLoading = true;
+    private string? errorMessage;
+    
+    // Form for creating/editing rules
+    private RuleFormModel ruleForm = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            StateHasChanged();
+
+            automationRules = await AutomationEngine.GetAutomationRulesAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load automation rules: {ex.Message}";
+            Console.WriteLine($"Error loading automation rules: {ex}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadData();
+    }
+
+    private void ViewRuleDetails(AutomationRule rule)
+    {
+        selectedRule = rule;
+        StateHasChanged();
+    }
+
+    private void CreateNewRule()
+    {
+        isCreatingRule = true;
+        ruleForm = new RuleFormModel
+        {
+            Priority = "Normal",
+            NotificationType = "Info",
+            IsActive = true
+        };
+        StateHasChanged();
+    }
+
+    private void EditRule(AutomationRule rule)
+    {
+        editingRule = rule;
+        isCreatingRule = false;
+        ruleForm = new RuleFormModel
+        {
+            Name = rule.Name,
+            Description = rule.Description,
+            TriggerType = rule.Trigger.ToString(),
+            Priority = rule.Priority.ToString(),
+            MessageTemplate = rule.MessageTemplate,
+            TriggerCondition = rule.TriggerCondition,
+            TargetRole = rule.TargetRole,
+            NotificationType = rule.NotificationType.ToString(),
+            IsActive = rule.IsActive
+        };
+        CloseModal(); // Close details modal if open
+        StateHasChanged();
+    }
+
+    private void CloseModal()
+    {
+        selectedRule = null;
+        StateHasChanged();
+    }
+
+    private void CancelEdit()
+    {
+        isCreatingRule = false;
+        editingRule = null;
+        ruleForm = new RuleFormModel();
+        StateHasChanged();
+    }
+
+    private async Task SaveRule()
+    {
+        try
+        {
+            if (!IsRuleFormValid()) return;
+
+            var rule = new AutomationRule
+            {
+                Id = isCreatingRule ? Guid.NewGuid().ToString() : editingRule!.Id,
+                Name = ruleForm.Name,
+                Description = ruleForm.Description ?? "",
+                Trigger = Enum.Parse<AutomationTrigger>(ruleForm.TriggerType),
+                TriggerCondition = ruleForm.TriggerCondition ?? "",
+                MessageTemplate = ruleForm.MessageTemplate,
+                NotificationType = Enum.Parse<NotificationType>(ruleForm.NotificationType),
+                Priority = Enum.Parse<NotificationPriority>(ruleForm.Priority),
+                TargetRole = ruleForm.TargetRole,
+                IsActive = ruleForm.IsActive,
+                CreatedBy = "admin", // Would get from user context
+                CreatedAt = isCreatingRule ? DateTime.UtcNow : editingRule!.CreatedAt
+            };
+
+            AutomationRule? result;
+            if (isCreatingRule)
+            {
+                result = await AutomationEngine.CreateAutomationRuleAsync(rule);
+            }
+            else
+            {
+                result = await AutomationEngine.UpdateAutomationRuleAsync(rule);
+            }
+
+            if (result != null)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Rule {(isCreatingRule ? "created" : "updated")} successfully!");
+                CancelEdit();
+                await LoadData();
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Failed to {(isCreatingRule ? "create" : "update")} rule.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error saving rule: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleRule(string ruleId)
+    {
+        try
+        {
+            var success = await AutomationEngine.ToggleAutomationRuleAsync(ruleId);
+            if (success)
+            {
+                await LoadData();
+                if (selectedRule?.Id == ruleId)
+                {
+                    selectedRule = automationRules?.FirstOrDefault(r => r.Id == ruleId);
+                }
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Failed to toggle rule status.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error toggling rule: {ex.Message}");
+        }
+    }
+
+    private bool IsRuleFormValid()
+    {
+        return !string.IsNullOrWhiteSpace(ruleForm.Name) &&
+               !string.IsNullOrWhiteSpace(ruleForm.TriggerType) &&
+               !string.IsNullOrWhiteSpace(ruleForm.MessageTemplate) &&
+               !string.IsNullOrWhiteSpace(ruleForm.Priority) &&
+               !string.IsNullOrWhiteSpace(ruleForm.NotificationType);
+    }
+
+    private string GetTriggerDisplayName(AutomationTrigger trigger)
+    {
+        return trigger switch
+        {
+            AutomationTrigger.AttendanceBelowThreshold => "Low Attendance",
+            AutomationTrigger.ResultUploaded => "Result Uploaded",
+            AutomationTrigger.AssignmentUploaded => "Assignment Upload",
+            AutomationTrigger.AssignmentDeadlineApproaching => "Deadline Reminder",
+            AutomationTrigger.ClassCancelled => "Class Cancelled",
+            AutomationTrigger.NoticePublished => "Notice Published",
+            _ => trigger.ToString()
+        };
+    }
+
+    private string GetPriorityBadgeClass(NotificationPriority priority)
+    {
+        return priority switch
+        {
+            NotificationPriority.Low => "bg-secondary",
+            NotificationPriority.Normal => "bg-primary",
+            NotificationPriority.High => "bg-warning",
+            NotificationPriority.Critical => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+
+    public class RuleFormModel
+    {
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public string TriggerType { get; set; } = "";
+        public string Priority { get; set; } = "Normal";
+        public string MessageTemplate { get; set; } = "";
+        public string? TriggerCondition { get; set; }
+        public string? TargetRole { get; set; }
+        public string NotificationType { get; set; } = "Info";
+        public bool IsActive { get; set; } = true;
+    }
+}

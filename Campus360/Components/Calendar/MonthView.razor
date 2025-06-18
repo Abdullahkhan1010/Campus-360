@@ -1,0 +1,250 @@
+@using System.Globalization
+@using Campus360.Models
+@using Campus360.Services
+
+<div class="month-view-container">
+    @if (IsLoading)
+    {
+        <div class="text-center p-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading events...</p>
+        </div>
+    }
+    else
+    {
+        <div class="month-grid">
+            <!-- Days of week header -->
+            <div class="days-header">
+                @foreach (var day in DaysOfWeek)
+                {
+                    <div class="day-name">@day</div>
+                }
+            </div>
+            
+            <!-- Calendar grid -->
+            <div class="days-grid">
+                @foreach (var week in Weeks)
+                {
+                    @foreach (var day in week)
+                    {
+                        <div class="day-cell @GetDayCellClass(day)">
+                            <div class="day-number">@day.Day</div>
+                            
+                            @{
+                                var eventsOnDay = GetEventsForDay(day);
+                            }
+                            
+                            @if (eventsOnDay.Any())
+                            {
+                                <div class="events-container">
+                                    @foreach (var evt in eventsOnDay.Take(MaxEventsPerDay))
+                                    {
+                                        <div class="month-event" 
+                                             style="background-color: @evt.Color"
+                                             @onclick="() => OnEventClick.InvokeAsync(evt)">
+                                            <div class="event-title">@evt.Title</div>
+                                        </div>
+                                    }
+                                    
+                                    @if (eventsOnDay.Count > MaxEventsPerDay)
+                                    {
+                                        <div class="more-events-indicator" @onclick="() => ShowMoreEvents(day)">
+                                            +@(eventsOnDay.Count - MaxEventsPerDay) more
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<AcademicEvent> Events { get; set; } = new();
+    [Parameter] public DateTime CurrentDate { get; set; } = DateTime.Today;
+    [Parameter] public EventCallback<AcademicEvent> OnEventClick { get; set; }
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public int MaxEventsPerDay { get; set; } = 3;
+    
+    private List<string> DaysOfWeek { get; set; } = new() { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    private List<List<DateTime>> Weeks { get; set; } = new();
+    
+    protected override void OnParametersSet()
+    {
+        GenerateCalendarData();
+    }
+    
+    private void GenerateCalendarData()
+    {
+        Weeks = new List<List<DateTime>>();
+        
+        // Get the first day of the month
+        var firstDayOfMonth = new DateTime(CurrentDate.Year, CurrentDate.Month, 1);
+        
+        // Get the last day of the month
+        var lastDayOfMonth = firstDayOfMonth.AddMonths(1).AddDays(-1);
+        
+        // Calculate the first day to display (could be from previous month)
+        var firstDayToDisplay = firstDayOfMonth.AddDays(-(int)firstDayOfMonth.DayOfWeek);
+        
+        // Generate 6 weeks to ensure we cover all possible month layouts
+        for (int weekIndex = 0; weekIndex < 6; weekIndex++)
+        {
+            var week = new List<DateTime>();
+            
+            for (int dayIndex = 0; dayIndex < 7; dayIndex++)
+            {
+                var currentDay = firstDayToDisplay.AddDays(weekIndex * 7 + dayIndex);
+                week.Add(currentDay);
+            }
+            
+            Weeks.Add(week);
+            
+            // If the last day of this week is already beyond the last day of the displayed month,
+            // and we've added at least 4 weeks, we can break
+            if (weekIndex >= 3 && week.Last() > lastDayOfMonth)
+            {
+                break;
+            }
+        }
+    }
+    
+    private List<AcademicEvent> GetEventsForDay(DateTime day)
+    {
+        // Include events that start on this day or span across this day
+        return Events.Where(e => 
+            (e.StartDate.Date <= day.Date && 
+             (!e.EndDate.HasValue || e.EndDate.Value.Date >= day.Date))).ToList();
+    }
+    
+    private string GetDayCellClass(DateTime day)
+    {
+        var classes = new List<string>();
+        
+        if (day.Month != CurrentDate.Month)
+        {
+            classes.Add("other-month");
+        }
+        
+        if (day.Date == DateTime.Today.Date)
+        {
+            classes.Add("today");
+        }
+        
+        // Weekend days
+        if (day.DayOfWeek == DayOfWeek.Saturday || day.DayOfWeek == DayOfWeek.Sunday)
+        {
+            classes.Add("weekend");
+        }
+        
+        return string.Join(" ", classes);
+    }
+    
+    private void ShowMoreEvents(DateTime day)
+    {
+        // Here you would typically show a modal or popup with all events
+        // For now, let's just highlight the events on this day by triggering a click on the first one
+        var events = GetEventsForDay(day);
+        if (events.Any())
+        {
+            OnEventClick.InvokeAsync(events.First());
+        }
+    }
+}
+
+<style>
+    .month-view-container {
+        width: 100%;
+        background: white;
+        border-radius: 0.25rem;
+        overflow: hidden;
+    }
+    
+    .month-grid {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .days-header {
+        display: flex;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .day-name {
+        width: calc(100% / 7);
+        text-align: center;
+        padding: 10px;
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+    
+    .days-grid {
+        display: flex;
+        flex-wrap: wrap;
+    }
+    
+    .day-cell {
+        width: calc(100% / 7);
+        aspect-ratio: 1 / 0.85;  /* Slightly wider than tall */
+        border-right: 1px solid #f0f0f0;
+        border-bottom: 1px solid #f0f0f0;
+        padding: 5px;
+        overflow: hidden;
+    }
+    
+    .day-number {
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-bottom: 5px;
+    }
+    
+    .other-month {
+        background-color: #f8f9fa;
+        color: #adb5bd;
+    }
+    
+    .today {
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+    
+    .today .day-number {
+        color: #0d6efd;
+        font-weight: 700;
+    }
+    
+    .weekend {
+        background-color: #f8f9fa;
+    }
+    
+    .events-container {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        overflow: hidden;
+    }
+    
+    .month-event {
+        padding: 2px 4px;
+        border-radius: 3px;
+        color: white;
+        font-size: 0.7rem;
+        cursor: pointer;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .more-events-indicator {
+        font-size: 0.7rem;
+        text-align: center;
+        color: #0d6efd;
+        cursor: pointer;
+        padding: 1px;
+    }
+</style>

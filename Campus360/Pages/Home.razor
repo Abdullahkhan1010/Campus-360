@@ -1,0 +1,11 @@
+﻿@page "/"
+@inject NavigationManager Navigation
+
+<PageTitle>Campus360</PageTitle>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo("/login");
+    }
+}

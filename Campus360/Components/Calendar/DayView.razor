@@ -1,0 +1,219 @@
+@using Campus360.Models
+@using Campus360.Services
+@inject IJSRuntime JSRuntime
+
+<div class="day-view calendar-view">
+    <!-- Day Header -->
+    <div class="day-header mb-3">
+        <div class="row align-items-center">
+            <div class="col-md-12 text-center">
+                <h4 class="mb-0 fw-bold">@CurrentDate.ToString("dddd, MMMM d, yyyy")</h4>
+            </div>
+        </div>
+    </div>
+    
+    <!-- All-day events -->
+    @if (AllDayEvents.Any())
+    {
+        <div class="all-day-events mb-3">
+            <div class="card">
+                <div class="card-header bg-light py-2">
+                    <h6 class="mb-0"><i class="bi bi-calendar-event me-2"></i>All Day</h6>
+                </div>
+                <div class="card-body p-2">
+                    <div class="day-event-list">
+                        @foreach (var evt in AllDayEvents)
+                        {
+                            <div class="day-event all-day" 
+                                 style="border-left: 4px solid @evt.Color;"
+                                 @onclick="() => OnEventSelected(evt)">
+                                <h6 class="mb-1">@evt.Title</h6>
+                                <div class="small text-muted">
+                                    @if (!string.IsNullOrEmpty(evt.Location))
+                                    {
+                                        <span class="me-2"><i class="bi bi-geo-alt"></i> @evt.Location</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(evt.CourseName))
+                                    {
+                                        <span><i class="bi bi-book"></i> @evt.CourseName</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Hourly schedule -->
+    <div class="time-schedule">
+        <div class="card">
+            <div class="card-header bg-light py-2">
+                <h6 class="mb-0"><i class="bi bi-clock me-2"></i>Schedule</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="time-slots">
+                    @for (int i = 0; i < 24; i++)
+                    {
+                        var hour = i;
+                        var hourDisplay = hour == 0 ? "12 AM" : hour < 12 ? $"{hour} AM" : hour == 12 ? "12 PM" : $"{hour - 12} PM";
+                        var eventsInHour = TimeSlotEvents.Where(e => e.StartDate.Hour == hour).ToList();
+                        
+                        <div class="time-slot">
+                            <div class="time-label">@hourDisplay</div>
+                            <div class="time-slot-content">
+                                @if (!eventsInHour.Any())
+                                {
+                                    <div class="empty-slot"></div>
+                                }
+                                else
+                                {
+                                    @foreach (var evt in eventsInHour)
+                                    {
+                                        var duration = evt.EndDate.HasValue ? 
+                                            (int)Math.Ceiling((evt.EndDate.Value - evt.StartDate).TotalHours) : 1;
+                                        
+                                        <div class="time-event" 
+                                             style="border-left: 4px solid @evt.Color; min-height: @(duration * 60)px;"
+                                             @onclick="() => OnEventSelected(evt)">
+                                            <div class="time-event-time">
+                                                @evt.StartDate.ToString("h:mm tt") - 
+                                                @(evt.EndDate.HasValue ? evt.EndDate.Value.ToString("h:mm tt") : "")
+                                            </div>
+                                            <h6 class="mb-1">@evt.Title</h6>
+                                            @if (!string.IsNullOrEmpty(evt.Location))
+                                            {
+                                                <div class="small text-muted">
+                                                    <i class="bi bi-geo-alt"></i> @evt.Location
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<CalendarEvent> Events { get; set; } = new();
+    [Parameter] public DateTime CurrentDate { get; set; } = DateTime.Today;
+    [Parameter] public EventCallback<CalendarEvent> OnEventClick { get; set; }
+    
+    private List<CalendarEvent> AllDayEvents = new();
+    private List<CalendarEvent> TimeSlotEvents = new();
+    
+    protected override void OnParametersSet()
+    {
+        FilterEventsForCurrentDay();
+    }
+
+    private void FilterEventsForCurrentDay()
+    {
+        var eventsOnSelectedDay = Events
+            .Where(e => e.StartDate.Date == CurrentDate.Date || 
+                       (e.EndDate.HasValue && e.StartDate.Date <= CurrentDate.Date && e.EndDate.Value.Date >= CurrentDate.Date))
+            .ToList();
+            
+        AllDayEvents = eventsOnSelectedDay
+            .Where(e => !e.HasTime || e.StartDate.TimeOfDay.TotalMinutes == 0 && 
+                  (!e.EndDate.HasValue || e.EndDate.Value.TimeOfDay.TotalMinutes == 0 || 
+                   e.EndDate.Value.Date > e.StartDate.Date))
+            .OrderBy(e => e.Priority)
+            .ThenBy(e => e.Title)
+            .ToList();
+            
+        TimeSlotEvents = eventsOnSelectedDay
+            .Where(e => e.HasTime && !AllDayEvents.Contains(e))
+            .OrderBy(e => e.StartDate.TimeOfDay)
+            .ThenBy(e => e.EndDate?.TimeOfDay)
+            .ThenBy(e => e.Priority)
+            .ToList();
+    }
+    
+    private async Task OnEventSelected(CalendarEvent calendarEvent)
+    {
+        await OnEventClick.InvokeAsync(calendarEvent);
+    }
+}
+
+<style>
+.day-view {
+    min-height: 800px;
+}
+
+.day-header {
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.all-day-events .day-event {
+    padding: 10px;
+    margin-bottom: 5px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.all-day-events .day-event:hover {
+    background-color: #e9ecef;
+}
+
+.time-slots {
+    position: relative;
+    min-height: 1440px; /* 24 * 60px */
+}
+
+.time-slot {
+    display: flex;
+    min-height: 60px;
+    border-bottom: 1px solid #eee;
+}
+
+.time-label {
+    width: 80px;
+    padding: 10px;
+    text-align: right;
+    font-weight: 500;
+    color: #6c757d;
+    font-size: 0.85rem;
+}
+
+.time-slot-content {
+    flex: 1;
+    padding: 5px;
+    position: relative;
+}
+
+.time-event {
+    padding: 8px;
+    margin-bottom: 5px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    position: relative;
+    min-height: 60px;
+}
+
+.time-event:hover {
+    background-color: #e9ecef;
+}
+
+.time-event-time {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-bottom: 3px;
+}
+
+.empty-slot {
+    height: 50px;
+}
+</style>

@@ -1,0 +1,159 @@
+@page "/teacher/dashboard"
+@layout TeacherLayout
+@using Campus360.Components.Calendar
+@inject TeacherService TeacherService
+@inject TeacherServiceEnhanced TeacherServiceEnhanced
+@inject UserContextService UserContext
+
+<PageTitle>Teacher Dashboard - Campus360</PageTitle>
+
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">Teacher Dashboard</h2>
+        <p class="lead">Welcome back, @UserContext.CurrentUser?.FullName! Here's an overview of your teaching activities.</p>
+    </div>
+</div>
+
+@if (dashboardStats != null)
+{
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <StatCard Title="Active Courses" 
+                     Value="@dashboardStats.TotalCourses.ToString()" 
+                     Icon="bi-book" 
+                     BackgroundColor="bg-success" />
+        </div>
+        <div class="col-md-3">
+            <StatCard Title="Total Students" 
+                     Value="@dashboardStats.TotalStudents.ToString()" 
+                     Icon="bi-people" 
+                     BackgroundColor="bg-info" />
+        </div>
+        <div class="col-md-3">
+            <StatCard Title="Pending Assignments" 
+                     Value="@dashboardStats.PendingAssignments.ToString()" 
+                     Icon="bi-clipboard-check" 
+                     BackgroundColor="bg-warning" />
+        </div>
+        <div class="col-md-3">
+            <StatCard Title="Classes Today" 
+                     Value="@dashboardStats.ClassesToday.ToString()" 
+                     Icon="bi-calendar-event" 
+                     BackgroundColor="bg-danger" />
+        </div>
+    </div>
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Activities</h5>
+            </div>
+            <div class="card-body">
+                @if (recentActivities != null && recentActivities.Any())
+                {
+                    <div class="list-group list-group-flush">
+                        @foreach (var activity in recentActivities.Take(5))
+                        {
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>@activity.ActivityType</strong>
+                                    <br><small class="text-muted">@activity.Description</small>
+                                </div>
+                                <small class="text-muted">@activity.Timestamp.ToString("MMM dd, HH:mm")</small>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">No recent activities.</p>
+                }
+            </div>
+        </div>
+    </div>    <div class="col-md-4">
+        <!-- Mini Calendar -->
+        <div class="mb-4">
+            <MiniCalendar ViewAllUrl="/teacher/calendar" />
+        </div>
+
+        <!-- Upcoming Events -->
+        <div class="mb-4">
+            <CalendarWidget Title="My Schedule" 
+                           ViewAllUrl="/teacher/calendar" 
+                           MaxEvents="4" 
+                           DaysAhead="7" 
+                           ShowDescription="false" />
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="/teacher/courses" class="btn btn-outline-primary">
+                        <i class="bi bi-book me-2"></i>My Courses
+                    </a>
+                    <button class="btn btn-outline-success" @onclick="ShowMarkAttendanceModal">
+                        <i class="bi bi-check-square me-2"></i>Mark Attendance
+                    </button>
+                    <a href="/teacher/results" class="btn btn-outline-info">
+                        <i class="bi bi-trophy me-2"></i>Upload Results
+                    </a>
+                    <button class="btn btn-outline-warning" @onclick="ShowSendNoticeModal">
+                        <i class="bi bi-megaphone me-2"></i>Send Notice
+                    </button>
+                    <a href="/teacher/calendar" class="btn btn-outline-dark">
+                        <i class="bi bi-calendar3 me-2"></i>Calendar
+                    </a>
+                    <a href="/teacher/logs" class="btn btn-outline-secondary">
+                        <i class="bi bi-journal-text me-2"></i>View Automation Logs
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<MarkAttendanceModal @ref="markAttendanceModal" />
+<SendNoticeModal @ref="sendNoticeModal" />
+
+@code {
+    private TeacherDashboardStats? dashboardStats;
+    private List<AutomationLog>? recentActivities;
+    private MarkAttendanceModal? markAttendanceModal;
+    private SendNoticeModal? sendNoticeModal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+
+    private async Task LoadDashboardData()
+    {
+        if (UserContext.CurrentUser != null)
+        {
+            dashboardStats = await TeacherService.GetDashboardStatsAsync(UserContext.CurrentUser.Id);
+            recentActivities = await TeacherService.GetAutomationLogsAsync(UserContext.CurrentUser.Id);
+        }
+    }
+
+    private async Task ShowMarkAttendanceModal()
+    {
+        if (markAttendanceModal != null)
+        {
+            await markAttendanceModal.ShowAsync();
+        }
+    }
+
+    private async Task ShowSendNoticeModal()
+    {
+        if (sendNoticeModal != null)
+        {
+            await sendNoticeModal.ShowAsync();
+        }
+    }
+}

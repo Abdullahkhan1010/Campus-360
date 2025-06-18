@@ -1,0 +1,464 @@
+@page "/admin/users"
+@layout ModernAdminLayout_Fixed
+@inject AdminService AdminService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>User Management - Campus360</PageTitle>
+
+<div class="modern-page-header">
+    <div class="modern-page-title">
+        <div class="modern-page-icon">
+            <i class="bi bi-people"></i>
+        </div>
+        <div>
+            <h1>User Management</h1>
+            <p class="modern-page-subtitle">Manage all users, roles, and permissions</p>
+        </div>
+    </div>
+    <div class="modern-page-actions">
+        <button class="modern-btn modern-btn-primary" @onclick="ShowAddUserModal">
+            <i class="bi bi-person-plus"></i>
+            Add New User
+        </button>
+    </div>
+</div>
+
+<!-- Filter Section -->
+<div class="modern-card">
+    <div class="modern-card-body">
+        <div class="modern-filter-grid">
+            <div class="modern-form-group">
+                <label class="modern-label">Filter by Role</label>
+                <select @bind="SelectedRole" @bind:after="FilterUsers" class="modern-select">
+                    <option value="">All Roles</option>
+                    <option value="admin">Admin</option>
+                    <option value="teacher">Teacher</option>
+                    <option value="student">Student</option>
+                </select>
+            </div>
+            <div class="modern-form-group">
+                <label class="modern-label">Filter by Status</label>
+                <select @bind="SelectedVerificationStatus" @bind:after="FilterUsers" class="modern-select">
+                    <option value="">All Status</option>
+                    <option value="true">Verified</option>
+                    <option value="false">Unverified</option>
+                </select>
+            </div>
+            <div class="modern-form-group">
+                <label class="modern-label">Search Users</label>
+                <input type="text" @bind="SearchTerm" @bind:after="FilterUsers" 
+                       class="modern-input" placeholder="Search by name or email..." />
+            </div>
+            <div class="modern-form-group">
+                <label class="modern-label">&nbsp;</label>
+                <button class="modern-btn modern-btn-secondary modern-btn-full" @onclick="ClearFilters">
+                    <i class="bi bi-x-circle"></i>
+                    Clear Filters
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="modern-stats-grid">
+    <div class="modern-stat-card" data-stat="primary">
+        <div class="modern-stat-icon">
+            <i class="bi bi-people-fill"></i>
+        </div>
+        <div class="modern-stat-content">
+            <div class="modern-stat-value">@FilteredUsers.Count</div>
+            <div class="modern-stat-label">Total Users</div>
+        </div>
+        <div class="modern-stat-trend">
+            <i class="bi bi-arrow-up"></i>
+            <span>+12%</span>
+        </div>
+    </div>    <div class="modern-stat-card" data-stat="success">
+        <div class="modern-stat-icon">
+            <i class="bi bi-person-workspace"></i>
+        </div>
+        <div class="modern-stat-content">
+            <div class="modern-stat-value">@FilteredUsers.Count(u => u.Role == "teacher")</div>
+            <div class="modern-stat-label">Teachers</div>
+        </div>
+        <div class="modern-stat-trend">
+            <i class="bi bi-arrow-up"></i>
+            <span>+5%</span>
+        </div>
+    </div>
+    <div class="modern-stat-card" data-stat="info">
+        <div class="modern-stat-icon">
+            <i class="bi bi-mortarboard"></i>
+        </div>
+        <div class="modern-stat-content">
+            <div class="modern-stat-value">@FilteredUsers.Count(u => u.Role == "student")</div>
+            <div class="modern-stat-label">Students</div>
+        </div>
+        <div class="modern-stat-trend">
+            <i class="bi bi-arrow-up"></i>
+            <span>+18%</span>
+        </div>
+    </div>
+    <div class="modern-stat-card" data-stat="warning">
+        <div class="modern-stat-icon">
+            <i class="bi bi-clock-history"></i>
+        </div>
+        <div class="modern-stat-content">
+            <div class="modern-stat-value">@FilteredUsers.Count(u => !u.IsVerified)</div>
+            <div class="modern-stat-label">Pending Approval</div>
+        </div>
+        <div class="modern-stat-trend">
+            <i class="bi bi-arrow-down"></i>
+            <span>-3%</span>
+        </div>
+    </div>
+</div>
+
+<!-- Users Table -->
+<div class="modern-card">
+    <div class="modern-card-header">
+        <h3 class="modern-card-title">
+            <i class="bi bi-people"></i>
+            Users List
+        </h3>
+        <div class="modern-card-actions">
+            <button class="modern-btn modern-btn-icon" title="Refresh">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button class="modern-btn modern-btn-icon" title="Export">
+                <i class="bi bi-download"></i>
+            </button>
+        </div>
+    </div>
+    <div class="modern-card-body modern-table-container">
+        @if (IsLoading)
+        {
+            <div class="modern-loading-state">
+                <div class="modern-spinner"></div>
+                <p>Loading users...</p>
+            </div>
+        }
+        else if (FilteredUsers.Any())
+        {
+            <div class="modern-table-wrapper">
+                <table class="modern-table">
+                    <thead>
+                        <tr>
+                            <th>
+                                <div class="modern-th-content">
+                                    <span>Name</span>
+                                    <i class="bi bi-chevron-expand"></i>
+                                </div>
+                            </th>                            <th>
+                                <div class="modern-th-content">
+                                    <span>Email</span>
+                                    <i class="bi bi-chevron-expand"></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="modern-th-content">
+                                    <span>Role</span>
+                                    <i class="bi bi-chevron-expand"></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="modern-th-content">
+                                    <span>Department</span>
+                                    <i class="bi bi-chevron-expand"></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="modern-th-content">
+                                    <span>Status</span>
+                                    <i class="bi bi-chevron-expand"></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="modern-th-content">
+                                    <span>Created</span>
+                                    <i class="bi bi-chevron-expand"></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="modern-th-content">
+                                    <span>Actions</span>
+                                </div>
+                            </th>                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in FilteredUsers)
+                        {
+                            <tr class="modern-table-row">
+                                <td>
+                                    <div class="modern-user-cell">
+                                        <div class="modern-avatar" data-role="@user.Role">
+                                            @if (user.Role == "admin")
+                                            {
+                                                <i class="bi bi-shield-check"></i>
+                                            }
+                                            else if (user.Role == "teacher")
+                                            {
+                                                <i class="bi bi-person-workspace"></i>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-mortarboard"></i>
+                                            }
+                                        </div>
+                                        <div class="modern-user-info">
+                                            <div class="modern-user-name">@user.FullName</div>
+                                            <div class="modern-user-meta">@user.Role</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="modern-email">@user.Email</div>
+                                </td>
+                                <td>
+                                    <span class="modern-badge modern-badge-@GetRoleBadgeColor(user.Role)">
+                                        @user.Role.ToUpper()
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="modern-department">@(user.DepartmentName ?? "Not Assigned")</div>
+                                </td>                                <td>
+                                    <div class="modern-status-cell">
+                                        @if (user.IsVerified)
+                                        {
+                                            @if (user.IsActive)
+                                            {
+                                                <span class="modern-badge modern-badge-success">
+                                                    <i class="bi bi-check-circle"></i>
+                                                    Active
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="modern-badge modern-badge-secondary">
+                                                    <i class="bi bi-pause-circle"></i>
+                                                    Inactive
+                                                </span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="modern-badge modern-badge-warning">
+                                                <i class="bi bi-clock"></i>
+                                                Pending
+                                            </span>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="modern-date">@user.CreatedAt.ToString("MMM dd, yyyy")</div>
+                                </td>
+                                <td>
+                                    <div class="modern-actions">
+                                        @if (!user.IsVerified)
+                                        {
+                                            <button class="modern-action-btn modern-action-success" 
+                                                    @onclick="() => VerifyUser(user.Id)" 
+                                                    title="Verify User">
+                                                <i class="bi bi-check-circle"></i>
+                                            </button>
+                                        }
+                                        @if (user.Role == "teacher" && string.IsNullOrEmpty(user.DepartmentId))
+                                        {
+                                            <button class="modern-action-btn modern-action-info" 
+                                                    @onclick="() => ShowAssignDepartmentModal(user.Id)" 
+                                                    title="Assign Department">
+                                                <i class="bi bi-building"></i>
+                                            </button>
+                                        }
+                                        <button class="modern-action-btn modern-action-primary" 
+                                                @onclick="() => EditUser(user)" 
+                                                title="Edit User">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="modern-action-btn modern-action-@(user.IsActive ? "warning" : "success")" 
+                                                @onclick="() => ToggleUserStatus(user.Id)" 
+                                                title="@(user.IsActive ? "Deactivate" : "Activate")">
+                                            <i class="bi bi-@(user.IsActive ? "pause" : "play")"></i>
+                                        </button>
+                                    </div>
+                                </td>                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="modern-empty-state">
+                <div class="modern-empty-icon">
+                    <i class="bi bi-people"></i>
+                </div>
+                <h3>No users found</h3>
+                <p>No users match your current filter criteria.</p>
+                <button class="modern-btn modern-btn-primary" @onclick="ClearFilters">
+                    <i class="bi bi-filter-circle"></i>
+                    Clear Filters
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- User Modal -->
+<UserModal @ref="UserModalRef" OnUserSaved="OnUserSaved" OnUserCreationMessage="OnUserCreationMessage" />
+
+<!-- Assign Department Modal -->
+<AssignDepartmentModal @ref="AssignDepartmentModalRef" 
+                       ModalId="assignDepartmentModal"
+                       Title="Assign Department to Teacher"
+                       Departments="AllDepartments"
+                       OnAssign="OnDepartmentAssigned" />
+
+@code {
+    private List<UserManagementModel> AllUsers = new();
+    private List<UserManagementModel> FilteredUsers = new();
+    private List<Department> AllDepartments = new();
+    private bool IsLoading = true;
+    
+    // Filter properties
+    private string SelectedRole = "";
+    private string SelectedVerificationStatus = "";
+    private string SearchTerm = "";
+    
+    // Modal references
+    private UserModal? UserModalRef;
+    private AssignDepartmentModal? AssignDepartmentModalRef;
+    private string SelectedUserIdForDepartment = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        IsLoading = true;
+        try
+        {
+            AllUsers = await AdminService.GetUsersAsync();
+            AllDepartments = await AdminService.GetDepartmentsAsync();
+            FilteredUsers = AllUsers.ToList();
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private void FilterUsers()
+    {
+        var query = AllUsers.AsQueryable();
+
+        // Filter by role
+        if (!string.IsNullOrEmpty(SelectedRole))
+            query = query.Where(u => u.Role == SelectedRole);
+
+        // Filter by verification status
+        if (!string.IsNullOrEmpty(SelectedVerificationStatus))
+        {
+            var isVerified = bool.Parse(SelectedVerificationStatus);
+            query = query.Where(u => u.IsVerified == isVerified);
+        }
+
+        // Filter by search term
+        if (!string.IsNullOrEmpty(SearchTerm))
+        {
+            var searchLower = SearchTerm.ToLower();
+            query = query.Where(u => u.FullName.ToLower().Contains(searchLower) || 
+                                   u.Email.ToLower().Contains(searchLower));
+        }
+
+        FilteredUsers = query.ToList();
+    }
+
+    private void ClearFilters()
+    {
+        SelectedRole = "";
+        SelectedVerificationStatus = "";
+        SearchTerm = "";
+        FilteredUsers = AllUsers.ToList();
+    }
+
+    private string GetRoleBadgeColor(string role) => role.ToLower() switch
+    {
+        "admin" => "danger",
+        "teacher" => "success",
+        "student" => "info",
+        _ => "secondary"
+    };
+
+    private async Task ShowAddUserModal()
+    {
+        if (UserModalRef != null)
+        {
+            await UserModalRef.ShowAsync();
+        }
+    }
+
+    private async Task EditUser(UserManagementModel user)
+    {
+        if (UserModalRef != null)
+        {
+            await UserModalRef.ShowAsync(user);
+        }
+    }
+
+    private async Task VerifyUser(string userId)
+    {
+        if (await AdminService.VerifyUserAsync(userId))
+        {
+            await LoadData();
+            await ShowSuccessMessage("User verified successfully!");
+        }
+    }
+
+    private async Task ToggleUserStatus(string userId)
+    {
+        if (await AdminService.ToggleUserStatusAsync(userId))
+        {
+            await LoadData();
+            await ShowSuccessMessage("User status updated successfully!");
+        }
+    }
+
+    private async Task ShowAssignDepartmentModal(string userId)
+    {
+        SelectedUserIdForDepartment = userId;
+        if (AssignDepartmentModalRef != null)
+        {
+            await AssignDepartmentModalRef.ShowAsync();
+        }
+    }
+
+    private async Task OnDepartmentAssigned(string departmentId)
+    {
+        if (!string.IsNullOrEmpty(SelectedUserIdForDepartment) && !string.IsNullOrEmpty(departmentId))
+        {
+            if (await AdminService.AssignUserToDepartmentAsync(SelectedUserIdForDepartment, departmentId))
+            {
+                await LoadData();
+                await ShowSuccessMessage("Department assigned successfully!");
+            }
+        }
+        SelectedUserIdForDepartment = "";
+    }    private async Task OnUserSaved()
+    {
+        await LoadData();
+    }
+
+    private async Task OnUserCreationMessage(string message)
+    {
+        await ShowSuccessMessage(message);
+    }
+
+    private async Task ShowSuccessMessage(string message)
+    {
+        await JSRuntime.InvokeVoidAsync("showToast", message, "success");
+    }
+}

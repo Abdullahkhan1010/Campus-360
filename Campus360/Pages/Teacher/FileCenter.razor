@@ -1,0 +1,403 @@
+@page "/teacher/file-center"
+@layout TeacherLayout
+@using Campus360.Models
+@using Campus360.Services
+@using Campus360.Components.FileManagement
+@inject FileManagementService FileService
+@inject UserContextService UserContext
+@inject IJSRuntime JSRuntime
+@attribute [Authorize]
+
+<PageTitle>File Center - Campus360</PageTitle>
+
+<div class="container-fluid px-4 py-3">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 fw-bold mb-0"> File Center</h1>
+            <p class="text-muted mb-0">Upload and manage your course materials, assignments, and resources</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" @onclick="RefreshFiles">
+                <i class="fas fa-sync-alt me-2"></i>Refresh
+            </button>
+            <div class="dropdown">
+                <button class="btn btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="fas fa-upload me-2"></i>Upload
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" @onclick="() => ShowUploadModal(FileType.Assignment)">
+                        <i class="fas fa-tasks me-2"></i>Assignment
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" @onclick="() => ShowUploadModal(FileType.Notes)">
+                        <i class="fas fa-book me-2"></i>Notes/Study Material
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" @onclick="() => ShowUploadModal(FileType.Result)">
+                        <i class="fas fa-chart-bar me-2"></i>Results
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" @onclick="() => ShowUploadModal(FileType.Notice)">
+                        <i class="fas fa-bullhorn me-2"></i>Notice
+                    </a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" @onclick="() => ShowUploadModal(FileType.Syllabus)">
+                        <i class="fas fa-list me-2"></i>Syllabus
+                    </a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Teacher Quick Stats -->
+    @if (fileStatistics != null)
+    {
+        <div class="row mb-4">
+            <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="text-primary mb-2">
+                            <i class="fas fa-tasks fa-2x"></i>
+                        </div>
+                        <h4 class="mb-1">@fileStatistics.TotalAssignments</h4>
+                        <small class="text-muted">Assignments</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="text-success mb-2">
+                            <i class="fas fa-book fa-2x"></i>
+                        </div>
+                        <h4 class="mb-1">@fileStatistics.TotalNotes</h4>
+                        <small class="text-muted">Notes</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="text-info mb-2">
+                            <i class="fas fa-chart-bar fa-2x"></i>
+                        </div>
+                        <h4 class="mb-1">@fileStatistics.TotalResults</h4>
+                        <small class="text-muted">Results</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="text-warning mb-2">
+                            <i class="fas fa-bullhorn fa-2x"></i>
+                        </div>
+                        <h4 class="mb-1">@fileStatistics.TotalNotices</h4>
+                        <small class="text-muted">Notices</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="text-secondary mb-2">
+                            <i class="fas fa-download fa-2x"></i>
+                        </div>
+                        <h4 class="mb-1">@fileStatistics.TotalDownloads</h4>
+                        <small class="text-muted">Downloads</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="text-dark mb-2">
+                            <i class="fas fa-hdd fa-2x"></i>
+                        </div>
+                        <h6 class="mb-1">@fileStatistics.TotalStorageFormatted</h6>
+                        <small class="text-muted">Storage</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- My Uploads vs All Files Toggle -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="btn-group" role="group">
+            <input type="radio" class="btn-check" name="viewMode" id="myFiles" @onchange="() => ChangeViewMode(true)" checked="@showMyFilesOnly">
+            <label class="btn btn-outline-primary" for="myFiles">
+                <i class="fas fa-user me-2"></i>My Uploads (@myUploadedFiles.Count)
+            </label>
+            
+            <input type="radio" class="btn-check" name="viewMode" id="allFiles" @onchange="() => ChangeViewMode(false)" checked="@(!showMyFilesOnly)">
+            <label class="btn btn-outline-primary" for="allFiles">
+                <i class="fas fa-globe me-2"></i>All Accessible Files (@allFiles.Count)
+            </label>
+        </div>
+        
+        @if (showMyFilesOnly && myUploadedFiles.Any())
+        {
+            <div class="text-muted">
+                <small>Showing files uploaded by you</small>
+            </div>
+        }
+    </div>
+
+    <!-- File Categories -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <ul class="nav nav-tabs card-header-tabs" role="tablist">                        <li class="nav-item" role="presentation">
+                            <button class="nav-link @(selectedTab == "all" ? "active" : "")" 
+                                    @onclick='() => ChangeTab("all")' type="button">
+                                <i class="fas fa-folder me-2"></i>All (@GetFilteredFiles().Count)
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link @(selectedTab == "assignments" ? "active" : "")" 
+                                    @onclick='() => ChangeTab("assignments")' type="button">
+                                <i class="fas fa-tasks me-2"></i>Assignments
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link @(selectedTab == "notes" ? "active" : "")" 
+                                    @onclick='() => ChangeTab("notes")' type="button">
+                                <i class="fas fa-book me-2"></i>Notes & Materials
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link @(selectedTab == "results" ? "active" : "")" 
+                                    @onclick='() => ChangeTab("results")' type="button">
+                                <i class="fas fa-chart-bar me-2"></i>Results
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link @(selectedTab == "notices" ? "active" : "")" 
+                                    @onclick='() => ChangeTab("notices")' type="button">
+                                <i class="fas fa-bullhorn me-2"></i>Notices
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <!-- File Browser Component -->
+                    <FileBrowser @ref="fileBrowserRef"
+                                Files="GetFilteredFiles()" 
+                                ShowUploadButton="false"                                AllowDelete="showMyFilesOnly"
+                                AllowEdit="showMyFilesOnly"
+                                OnFileSelected="@(fileId => OnFileSelected(GetFilteredFiles().FirstOrDefault(f => f.Id == fileId)))"
+                                OnFileDeleted="OnFileDeleted" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overdue Assignments Alert -->
+    @if (fileStatistics?.OverdueAssignments.Any() == true)
+    {
+        <div class="alert alert-warning mt-4">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle me-3 fa-2x"></i>
+                <div>
+                    <h6 class="alert-heading mb-1">Overdue Assignments</h6>
+                    <p class="mb-0">You have @fileStatistics.OverdueAssignments.Count overdue assignments that need attention.</p>
+                </div>
+                <button class="btn btn-warning ms-auto" @onclick="() => ShowOverdueAssignments()">
+                    View Details
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Upload Modal -->
+@if (showUploadModal)
+{
+    <FileUploadModal @ref="uploadModalRef"
+                    IsVisible="showUploadModal"
+                    DefaultFileType="defaultUploadFileType"
+                    OnClose="CloseUploadModal"
+                    OnFileUploaded="OnFileUploaded" />
+}
+
+<!-- File View Modal -->
+@if (showFileViewModal && selectedFile != null)
+{
+    <FileViewModal @ref="fileViewModalRef"
+                  File="selectedFile"
+                  IsVisible="showFileViewModal"
+                  AllowEdit="CanEditFile(selectedFile)"
+                  AllowDelete="CanDeleteFile(selectedFile)"
+                  OnClose="CloseFileViewModal"
+                  OnFileDeleted="OnFileDeleted" />
+}
+
+@code {
+    private FileBrowser? fileBrowserRef;
+    private FileUploadModal? uploadModalRef;
+    private FileViewModal? fileViewModalRef;
+    
+    private List<FileDocument> allFiles = new();
+    private List<FileDocument> myUploadedFiles = new();
+    private FileStatistics? fileStatistics;
+    private FileDocument? selectedFile;
+    
+    private string selectedTab = "all";
+    private bool showMyFilesOnly = true;
+    private bool showUploadModal = false;
+    private bool showFileViewModal = false;
+    private FileType defaultUploadFileType = FileType.Assignment;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFiles();
+        await LoadFileStatistics();
+        isLoading = false;
+    }
+
+    private async Task LoadFiles()
+    {
+        try
+        {
+            var userProfile = await UserContext.GetCurrentUserAsync();
+            if (userProfile != null)
+            {
+                // Load all accessible files
+                allFiles = await FileService.GetUserAccessibleFilesAsync(
+                    userProfile.Id, 
+                    userProfile.Role);
+                
+                // Load files uploaded by this teacher
+                myUploadedFiles = await FileService.GetUserUploadedFilesAsync(userProfile.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading files: {ex.Message}");
+        }
+    }
+
+    private async Task LoadFileStatistics()
+    {
+        try
+        {
+            var userProfile = await UserContext.GetCurrentUserAsync();
+            if (userProfile != null)
+            {
+                fileStatistics = await FileService.GetFileStatisticsAsync(
+                    userProfile.Id, 
+                    userProfile.Role);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading file statistics: {ex.Message}");
+        }
+    }
+
+    private List<FileDocument> GetFilteredFiles()
+    {
+        var sourceFiles = showMyFilesOnly ? myUploadedFiles : allFiles;
+        
+        return selectedTab switch
+        {
+            "assignments" => sourceFiles.Where(f => f.FileType == FileType.Assignment).ToList(),
+            "notes" => sourceFiles.Where(f => f.FileType == FileType.Notes || f.FileType == FileType.StudyMaterial).ToList(),
+            "results" => sourceFiles.Where(f => f.FileType == FileType.Result).ToList(),
+            "notices" => sourceFiles.Where(f => f.FileType == FileType.Notice || f.FileType == FileType.Circular).ToList(),
+            _ => sourceFiles
+        };
+    }
+
+    private void ChangeTab(string tab)
+    {
+        selectedTab = tab;
+        StateHasChanged();
+    }
+
+    private void ChangeViewMode(bool myFilesOnly)
+    {
+        showMyFilesOnly = myFilesOnly;
+        StateHasChanged();
+    }
+
+    private async Task RefreshFiles()
+    {
+        isLoading = true;
+        await LoadFiles();
+        await LoadFileStatistics();
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private void ShowUploadModal(FileType fileType = FileType.Assignment)
+    {
+        defaultUploadFileType = fileType;
+        showUploadModal = true;
+    }
+
+    private void CloseUploadModal()
+    {
+        showUploadModal = false;
+    }
+
+    private async Task OnFileUploaded()
+    {
+        showUploadModal = false;
+        await RefreshFiles();
+    }
+
+    private void OnFileSelected(FileDocument file)
+    {
+        selectedFile = file;
+        showFileViewModal = true;
+    }
+
+    private void CloseFileViewModal()
+    {
+        showFileViewModal = false;
+        selectedFile = null;
+    }
+
+    private async Task OnFileDeleted(string fileId)
+    {
+        showFileViewModal = false;
+        selectedFile = null;
+        await RefreshFiles();
+    }
+
+    private async Task<bool> CanEditFile(FileDocument file)
+    {
+        var userProfile = await UserContext.GetCurrentUserAsync();
+        return userProfile != null && (file.UploadedBy == userProfile.Id || userProfile.Role == "admin");
+    }
+
+    private async Task<bool> CanDeleteFile(FileDocument file)
+    {
+        var userProfile = await UserContext.GetCurrentUserAsync();
+        return userProfile != null && (file.UploadedBy == userProfile.Id || userProfile.Role == "admin");
+    }
+
+    private void ShowOverdueAssignments()
+    {
+        selectedTab = "assignments";
+        showMyFilesOnly = true;
+        StateHasChanged();
+    }
+}
+
+<style>
+    .btn-check:checked + .btn-outline-primary {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: #fff;
+    }
+    
+    .nav-tabs .nav-link.active {
+        color: #495057;
+        background-color: #fff;
+        border-color: #dee2e6 #dee2e6 #fff;
+        font-weight: 600;
+    }
+</style>

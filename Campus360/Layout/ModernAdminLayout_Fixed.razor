@@ -1,0 +1,601 @@
+@using Microsoft.AspNetCore.Components.Routing
+@inherits LayoutComponentBase
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="admin-layout" data-theme="@currentTheme">
+    <!-- Modern Sidebar -->
+    <nav class="modern-sidebar @(isSidebarCollapsed ? "collapsed" : "") @(isMobileSidebarOpen ? "open" : "")">
+        <!-- Sidebar Header -->
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <i class="bi bi-mortarboard-fill"></i>
+            </div>
+            <h1 class="sidebar-title sidebar-text">Campus360</h1>
+        </div>
+
+        <!-- Sidebar Navigation -->
+        <div class="sidebar-nav">
+            <!-- Dashboard Section -->
+            <div class="nav-section">
+                <div class="nav-section-title sidebar-text">Dashboard</div>
+                <div class="nav-item">
+                    <NavLink href="/admin/dashboard" class="nav-link" Match="NavLinkMatch.All">
+                        <i class="nav-icon bi bi-grid-1x2-fill"></i>
+                        <span class="nav-text sidebar-text">Overview</span>
+                    </NavLink>
+                </div>
+                <div class="nav-item">
+                    <NavLink href="/admin/reports" class="nav-link">
+                        <i class="nav-icon bi bi-graph-up"></i>
+                        <span class="nav-text sidebar-text">Reports</span>
+                    </NavLink>
+                </div>
+            </div>
+
+            <!-- User Management Section -->
+            <div class="nav-section">
+                <div class="nav-section-title sidebar-text">User Management</div>
+                <div class="nav-item">
+                    <NavLink href="/admin/users" class="nav-link">
+                        <i class="nav-icon bi bi-people-fill"></i>
+                        <span class="nav-text sidebar-text">Users</span>
+                        @if (pendingUsersCount > 0)
+                        {
+                            <span class="nav-badge">@pendingUsersCount</span>
+                        }
+                    </NavLink>
+                </div>
+                <div class="nav-item">
+                    <NavLink href="/admin/departments" class="nav-link">
+                        <i class="nav-icon bi bi-building"></i>
+                        <span class="nav-text sidebar-text">Departments</span>
+                    </NavLink>
+                </div>
+            </div>
+
+            <!-- Academic Section -->
+            <div class="nav-section">
+                <div class="nav-section-title sidebar-text">Academic</div>
+                <div class="nav-item">
+                    <NavLink href="/admin/courses" class="nav-link">
+                        <i class="nav-icon bi bi-book-fill"></i>
+                        <span class="nav-text sidebar-text">Courses</span>
+                    </NavLink>
+                </div>
+                <div class="nav-item">
+                    <NavLink href="/admin/calendar" class="nav-link">
+                        <i class="nav-icon bi bi-calendar-event"></i>
+                        <span class="nav-text sidebar-text">Calendar</span>
+                    </NavLink>
+                </div>
+            </div>
+
+            <!-- System Section -->
+            <div class="nav-section">
+                <div class="nav-section-title sidebar-text">System</div>
+                <div class="nav-item">
+                    <NavLink href="/admin/automation" class="nav-link">
+                        <i class="nav-icon bi bi-robot"></i>
+                        <span class="nav-text sidebar-text">Automation</span>
+                    </NavLink>
+                </div>
+                <div class="nav-submenu">
+                    <div class="nav-item">
+                        <NavLink href="/admin/automation-rules" class="nav-link nav-sublink">
+                            <i class="nav-icon bi bi-gear"></i>
+                            <span class="nav-text sidebar-text">Rules</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item">
+                        <NavLink href="/admin/automation-logs" class="nav-link nav-sublink">
+                            <i class="nav-icon bi bi-journal-text"></i>
+                            <span class="nav-text sidebar-text">Logs</span>
+                        </NavLink>
+                    </div>
+                    <div class="nav-item">
+                        <NavLink href="/admin/automation-test" class="nav-link nav-sublink">
+                            <i class="nav-icon bi bi-play-circle"></i>
+                            <span class="nav-text sidebar-text">Test</span>
+                        </NavLink>
+                    </div>
+                </div>
+                <div class="nav-item">
+                    <NavLink href="/admin/file-center" class="nav-link">
+                        <i class="nav-icon bi bi-folder"></i>
+                        <span class="nav-text sidebar-text">File Center</span>
+                    </NavLink>
+                </div>
+                <div class="nav-item">
+                    <NavLink href="/admin/system-settings" class="nav-link">
+                        <i class="nav-icon bi bi-gear-wide-connected"></i>
+                        <span class="nav-text sidebar-text">Settings</span>
+                    </NavLink>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div class="admin-content">
+        <!-- Modern Top Navbar -->
+        <header class="modern-navbar">
+            <div class="navbar-left">
+                <button class="sidebar-toggle" @onclick="ToggleSidebar" title="Toggle Sidebar">
+                    <i class="bi bi-list"></i>
+                </button>
+                
+                <button class="mobile-sidebar-toggle d-md-none" @onclick="ToggleMobileSidebar" title="Menu">
+                    <i class="bi bi-grid-3x3-gap"></i>
+                </button>
+            </div>
+
+            <div class="navbar-center">
+                <div class="search-container">
+                    <i class="bi bi-search search-icon"></i>
+                    <input type="text" class="search-input" placeholder="Search..." @bind="searchQuery" @oninput="OnSearchInput" />
+                </div>
+            </div>
+
+            <div class="navbar-right">
+                <button class="navbar-action" @onclick="ToggleNotifications" title="Notifications">
+                    <i class="bi bi-bell"></i>
+                    @if (notificationCount > 0)
+                    {
+                        <span class="notification-badge">@notificationCount</span>
+                    }
+                </button>
+
+                <button class="navbar-action" @onclick="ToggleTheme" title="Toggle Dark Mode">
+                    <i class="bi bi-@(currentTheme == "light" ? "moon" : "sun")"></i>
+                </button>
+
+                <div class="user-menu">
+                    <button class="user-avatar" @onclick="ToggleUserMenu" title="User Menu">
+                        <span class="avatar-text">@GetUserInitials()</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <main class="page-content">
+            @Body
+        </main>
+    </div>
+</div>
+
+<!-- Mobile Sidebar Overlay -->
+@if (isMobileSidebarOpen)
+{
+    <div class="mobile-overlay" @onclick="CloseMobileSidebar"></div>
+}
+
+<style>
+    /* Define fallbacks or ensure they exist in global CSS */
+    :root {
+        --space-xs: 4px;
+        --space-sm: 8px;
+        --space-md: 12px;
+        --space-lg: 16px;
+        --space-xl: 24px;
+        --space-2xl: 32px;
+        --radius-sm: 4px;
+        --radius-md: 6px;
+        --radius-lg: 8px;
+        --radius-full: 9999px;
+        
+        /* Default theme variables (light mode) */
+        --theme-primary: #3B82F6;
+        --theme-primary-hover: #2563EB;
+        --theme-primary-text: #FFFFFF;
+        --theme-accent: #10B981;
+        --theme-accent-hover: #059669;
+        --theme-bg-main: #F9FAFB;
+        --theme-bg-sidebar: #FFFFFF;
+        --theme-bg-navbar: #FFFFFF;
+        --theme-bg-card: #FFFFFF;
+        --theme-text-primary: #1F2937;
+        --theme-text-secondary: #6B7280;
+        --theme-text-nav: #4B5563;
+        --theme-text-nav-active: var(--theme-primary);
+        --theme-text-nav-hover: var(--theme-primary);
+        --theme-border-color: #E5E7EB;
+        --theme-sidebar-width: 260px;
+        --theme-sidebar-width-collapsed: 80px;
+        --theme-navbar-height: 64px;
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+
+    .admin-layout[data-theme="dark"] {
+        --theme-primary: #60A5FA;
+        --theme-primary-hover: #3B82F6;
+        --theme-accent: #34D399;
+        --theme-accent-hover: #10B981;
+        --theme-bg-main: #111827;
+        --theme-bg-sidebar: #1F2937;
+        --theme-bg-navbar: #1F2937;
+        --theme-bg-card: #374151;
+        --theme-text-primary: #F3F4F6;
+        --theme-text-secondary: #9CA3AF;
+        --theme-text-nav: #D1D5DB;
+        --theme-border-color: #4B5563;
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.15);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.16);
+    }
+
+    .admin-layout {
+        display: flex;
+        height: 100vh;
+        background-color: var(--theme-bg-main);
+        color: var(--theme-text-primary);
+        overflow: hidden; /* Prevent double scrollbars if page content is also scrollable */
+    }
+
+    .modern-sidebar {
+        width: var(--theme-sidebar-width);
+        background-color: var(--theme-bg-sidebar);
+        border-right: 1px solid var(--theme-border-color);
+        display: flex;
+        flex-direction: column;
+        transition: width 0.3s ease;
+        box-shadow: var(--shadow-sm);
+        flex-shrink: 0;
+        overflow-y: auto;
+    }
+    .modern-sidebar.collapsed {
+        width: var(--theme-sidebar-width-collapsed);
+    }
+    .modern-sidebar .sidebar-header {
+        padding: var(--space-lg);
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid var(--theme-border-color);
+        height: var(--theme-navbar-height);
+        box-sizing: border-box;
+        flex-shrink: 0;
+    }
+    .modern-sidebar.collapsed .sidebar-header {
+        justify-content: center;
+        padding: var(--space-md); /* Adjust padding for collapsed */
+    }
+    .modern-sidebar .sidebar-logo i {
+        font-size: 1.8rem;
+        color: var(--theme-primary);
+    }
+    .modern-sidebar .sidebar-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--theme-text-primary);
+        margin-left: var(--space-md);
+        white-space: nowrap;
+    }
+    .modern-sidebar.collapsed .sidebar-title {
+        display: none;
+    }
+    .modern-sidebar .sidebar-nav {
+        padding: var(--space-md);
+        flex-grow: 1;
+        overflow-y: auto; /* Allow nav to scroll if it's too long */
+    }
+    .modern-sidebar .nav-section-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: var(--theme-text-secondary);
+        padding: var(--space-md) var(--space-sm);
+        margin-top: var(--space-lg);
+        white-space: nowrap;
+    }
+    .modern-sidebar.collapsed .nav-section-title {
+        text-align: center;
+        font-size: 0.6rem;
+        padding: var(--space-sm);
+        writing-mode: vertical-rl; /* Example for collapsed titles */
+        text-orientation: mixed;
+        display: none; /* Simpler: just hide */
+    }
+    .modern-sidebar .nav-item .nav-link {
+        display: flex;
+        align-items: center;
+        padding: var(--space-md) var(--space-sm);
+        border-radius: var(--radius-md);
+        color: var(--theme-text-nav);
+        text-decoration: none;
+        transition: background-color 0.2s ease, color 0.2s ease;
+        margin-bottom: var(--space-xs);
+        white-space: nowrap;
+    }
+    .modern-sidebar .nav-item .nav-link:hover {
+        background-color: var(--theme-bg-main); /* Use main bg for hover, slightly different */
+        color: var(--theme-text-nav-hover);
+    }
+    .modern-sidebar .nav-item .nav-link.active {
+        background-color: var(--theme-primary);
+        color: var(--theme-primary-text);
+        font-weight: 500;
+    }
+    .modern-sidebar .nav-item .nav-link.active .nav-icon {
+        color: var(--theme-primary-text);
+    }
+    .modern-sidebar .nav-icon {
+        font-size: 1.2rem;
+        margin-right: var(--space-md);
+        width: 24px;
+        text-align: center;
+        color: var(--theme-text-secondary);
+        flex-shrink: 0;
+    }
+    .modern-sidebar.collapsed .nav-text, .modern-sidebar.collapsed .nav-badge {
+        display: none;
+    }
+    .modern-sidebar.collapsed .nav-item .nav-link {
+        justify-content: center;
+        padding: var(--space-md);
+    }
+    .modern-sidebar.collapsed .nav-icon {
+        margin-right: 0;
+        font-size: 1.4rem; /* Slightly larger icons when collapsed */
+    }
+    .modern-sidebar .nav-badge {
+        margin-left: auto;
+        background-color: var(--theme-accent);
+        color: white;
+        font-size: 0.75rem;
+        padding: 2px 6px;
+        border-radius: var(--radius-full);
+    }
+
+    .admin-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0; /* Prevent content from overflowing */
+        background-color: var(--theme-bg-main);
+        overflow-y: auto; /* Allow content area to scroll */
+    }
+
+    .modern-navbar {
+        height: var(--theme-navbar-height);
+        background-color: var(--theme-bg-navbar);
+        border-bottom: 1px solid var(--theme-border-color);
+        display: flex;
+        align-items: center;
+        padding: 0 var(--space-lg);
+        box-shadow: var(--shadow-sm);
+        flex-shrink: 0; /* Prevent navbar from shrinking */
+        /* position: sticky; top: 0; z-index: 100; /* Removed sticky from here, handled by admin-content scroll */
+    }
+    .modern-navbar .navbar-left, .modern-navbar .navbar-right {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+    }
+    .modern-navbar .navbar-center {
+        flex-grow: 1;
+        display: flex;
+        justify-content: center;
+        padding: 0 var(--space-xl);
+    }
+    .modern-navbar .sidebar-toggle, .modern-navbar .mobile-sidebar-toggle, .modern-navbar .navbar-action {
+        background: none;
+        border: none;
+        color: var(--theme-text-secondary);
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: var(--space-sm);
+        border-radius: var(--radius-md);
+        transition: color 0.2s ease, background-color 0.2s ease;
+    }
+    .modern-navbar .sidebar-toggle:hover, .modern-navbar .mobile-sidebar-toggle:hover, .modern-navbar .navbar-action:hover {
+        color: var(--theme-text-primary);
+        background-color: var(--theme-bg-main); /* Use main bg for hover */
+    }
+    .modern-navbar .search-container {
+        position: relative;
+        width: 100%;
+        max-width: 400px;
+    }
+    .modern-navbar .search-icon {
+        position: absolute;
+        left: var(--space-md);
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--theme-text-secondary);
+        font-size: 1rem;
+    }
+    .modern-navbar .search-input {
+        width: 100%;
+        padding: var(--space-sm) var(--space-md) var(--space-sm) calc(var(--space-md) + var(--space-lg) + var(--space-xs)); /* Adjusted padding for icon */
+        border: 1px solid var(--theme-border-color);
+        border-radius: var(--radius-lg);
+        background-color: var(--theme-bg-main); /* Use main bg for search input */
+        color: var(--theme-text-primary);
+        font-size: 0.9rem;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .modern-navbar .search-input:focus {
+        outline: none;
+        border-color: var(--theme-primary);
+        box-shadow: 0 0 0 3px rgba(var(--theme-primary), 0.2); /* Focus ring using primary color with alpha */
+        background-color: var(--theme-bg-sidebar); /* Slightly different bg on focus */
+    }
+    .modern-navbar .navbar-action {
+        position: relative;
+    }
+    .modern-navbar .notification-badge {
+        position: absolute;
+        top: 4px; /* Adjusted position */
+        right: 4px; /* Adjusted position */
+        background-color: var(--theme-accent);
+        color: white;
+        font-size: 0.65rem;
+        font-weight: bold;
+        padding: 1px 4px; /* Slightly smaller padding */
+        border-radius: var(--radius-full);
+        border: 2px solid var(--theme-bg-navbar); /* Border to make it pop */
+    }
+    .modern-navbar .user-avatar {
+        background-color: var(--theme-primary);
+        color: var(--theme-primary-text);
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        border: none;
+        transition: opacity 0.2s ease;
+    }
+    .modern-navbar .user-avatar:hover {
+        opacity: 0.85;
+    }
+
+    .page-content {
+        flex: 1; /* Already in admin-content */
+        padding: var(--space-xl);
+        /* background-color: var(--theme-bg-main); /* Already on admin-content */
+        /* overflow-y: auto; /* Already on admin-content */
+    }
+
+    .mobile-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1040; /* Ensure it's above sidebar but below modals if any */
+        backdrop-filter: blur(4px);
+    }
+
+    /* Responsive design adjustments */
+    @@media (max-width: 768px) {
+        .modern-sidebar {
+            position: fixed; /* Fixed position for mobile */
+            left: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 1050; /* High z-index */
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+        .modern-sidebar.open {
+            transform: translateX(0);
+        }
+        .navbar-center {
+            display: none; /* Hide search bar on smaller screens */
+        }
+        .modern-navbar .navbar-left .sidebar-toggle {
+            display: none; /* Hide desktop toggle on mobile */
+        }
+        .page-content {
+            padding: var(--space-lg) var(--space-md);
+        }
+    }
+
+    @@media (min-width: 769px) { /* Ensure mobile toggle is hidden on desktop */
+        .modern-navbar .mobile-sidebar-toggle {
+            display: none;
+        }
+        .mobile-overlay {
+            display: none;
+        }
+    }
+    
+    @@media (max-width: 480px) {
+        .page-content {
+            padding: var(--space-md) var(--space-sm);
+        }
+        .modern-page-actions { /* From dashboard, but good general rule */
+            width: 100%;
+            display: flex;
+            flex-direction: column; /* Stack buttons on very small screens */
+            gap: var(--space-sm);
+        }
+        .modern-btn { /* From dashboard */
+            width: 100%;
+        }
+    }
+</style>
+
+@code {
+    private bool isSidebarCollapsed = false;
+    private bool isMobileSidebarOpen = false;
+    private string currentTheme = "light"; // Default theme
+    private string searchQuery = string.Empty;
+    private int notificationCount = 3; // This should come from a service
+    private int pendingUsersCount = 2; // This should come from a service
+    
+    protected override async Task OnInitializedAsync()
+    {
+        currentTheme = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "theme") ?? "light";
+        isSidebarCollapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "sidebarCollapsed") == "true";
+        await ApplyTheme();
+        StateHasChanged(); // Ensure UI updates with loaded theme
+    }
+
+    private async Task ToggleSidebar()
+    {
+        isSidebarCollapsed = !isSidebarCollapsed;
+        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "sidebarCollapsed", isSidebarCollapsed.ToString());
+    }
+
+    private void ToggleMobileSidebar()
+    {
+        isMobileSidebarOpen = !isMobileSidebarOpen;
+    }
+
+    private async Task ToggleTheme()
+    {
+        currentTheme = currentTheme == "light" ? "dark" : "light";
+        await ApplyTheme();
+        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "theme", currentTheme);
+    }
+
+    private async Task ApplyTheme()
+    {
+        // This script directly manipulates the data-theme on <html> or <body>
+        // For component-level theming via .admin-layout[data-theme="..."], this is fine.
+        // If a global theme switcher is intended, it should target document.documentElement.
+        await JSRuntime.InvokeVoidAsync("eval", $"document.documentElement.setAttribute('data-theme', '{currentTheme}')");
+    }
+
+    private void ToggleNotifications()
+    {
+        // TODO: Implement notification panel
+        notificationCount = 0; // Reset count when viewed
+    }
+
+    private void ToggleUserMenu()
+    {
+        // TODO: Implement user dropdown menu
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        searchQuery = e.Value?.ToString() ?? string.Empty;
+        // TODO: Implement real-time search
+    }
+
+    private void CloseMobileSidebar()
+    {
+        isMobileSidebarOpen = false;
+    }
+
+    private string GetUserInitials()
+    {
+        // TODO: Get from authentication service
+        return "AD"; // Admin
+    }
+
+    public void Dispose()
+    {
+        // Cleanup if needed
+    }
+}

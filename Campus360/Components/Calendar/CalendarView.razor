@@ -1,0 +1,357 @@
+@using Campus360.Models
+@using Campus360.Services
+@using Campus360.Components.Calendar
+@inject CalendarService CalendarService
+@inject IJSRuntime JSRuntime
+
+<div class="calendar-container">
+    <!-- Calendar Header -->
+    <div class="card">
+        <div class="card-header">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <div class="btn-group" role="group">
+                        <button class="btn @(CurrentView == CalendarViewType.Day ? "btn-primary" : "btn-outline-primary") btn-sm" 
+                                @onclick="() => ChangeView(CalendarViewType.Day)">
+                            <i class="bi bi-calendar-day me-1"></i>Day
+                        </button>
+                        <button class="btn @(CurrentView == CalendarViewType.Week ? "btn-primary" : "btn-outline-primary") btn-sm" 
+                                @onclick="() => ChangeView(CalendarViewType.Week)">
+                            <i class="bi bi-calendar-week me-1"></i>Week
+                        </button>
+                        <button class="btn @(CurrentView == CalendarViewType.Month ? "btn-primary" : "btn-outline-primary") btn-sm" 
+                                @onclick="() => ChangeView(CalendarViewType.Month)">
+                            <i class="bi bi-calendar-month me-1"></i>Month
+                        </button>
+                        <button class="btn @(CurrentView == CalendarViewType.Timeline ? "btn-primary" : "btn-outline-primary") btn-sm" 
+                                @onclick="() => ChangeView(CalendarViewType.Timeline)">
+                            <i class="bi bi-list-ul me-1"></i>Timeline
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-4 text-center">
+                    <h5 class="mb-0">
+                        <button class="btn btn-link" @onclick="NavigateToPrevious">
+                            <i class="bi bi-chevron-left"></i>
+                        </button>
+                        @GetCurrentPeriodDisplay()
+                        <button class="btn btn-link" @onclick="NavigateToNext">
+                            <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </h5>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="btn-group">
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="GoToToday">
+                            <i class="bi bi-house me-1"></i>Today
+                        </button>
+                        @if (ShowCreateButton)
+                        {
+                            <button class="btn btn-primary btn-sm" @onclick="ShowCreateEventModal">
+                                <i class="bi bi-plus-circle me-1"></i>Create Event
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Calendar Content -->
+        <div class="card-body p-0">
+            @if (IsLoading)
+            {
+                <div class="text-center p-4">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            }
+            else            {
+                @switch (CurrentView)
+                {
+                    case CalendarViewType.Day:
+                        <DayView Events="CalendarEvents.Where(e => e.StartDate.Date == CurrentDate.Date || (e.EndDate.HasValue && e.StartDate.Date <= CurrentDate.Date && e.EndDate.Value.Date >= CurrentDate.Date)).ToList()" 
+                                CurrentDate="CurrentDate" 
+                                OnEventClick="HandleCalendarEventClick" />
+                        break;
+                    case CalendarViewType.Week:
+                        <WeekView Events="FilteredEvents.Where(e => e.StartDate.Date >= GetStartOfWeek(CurrentDate) && e.StartDate.Date < GetStartOfWeek(CurrentDate).AddDays(7)).ToList()" 
+                                 CurrentDate="CurrentDate" 
+                                 OnEventClick="HandleAcademicEventClick" />
+                        break;
+                    case CalendarViewType.Month:
+                        <MonthView Events="FilteredEvents.Where(e => e.StartDate.Year == CurrentDate.Year && e.StartDate.Month == CurrentDate.Month).ToList()" 
+                                  CurrentDate="CurrentDate" 
+                                  OnEventClick="HandleAcademicEventClick" />
+                        break;
+                    case CalendarViewType.Timeline:
+                        <TimelineView Events="FlatTimelineEvents"
+                                     CurrentDate="CurrentDate"
+                                     OnEventClick="HandleTimelineEventClick" />
+                        break;
+                }
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Event Details Modal -->
+<EventDetailsModal @ref="EventDetailsModal" 
+                   Event="SelectedEvent" 
+                   AllowEdit="true"
+                   UserRole="@UserRole"
+                   UserId="@UserId"
+                   OnEventUpdated="RefreshEvents" 
+                   OnEventDeleted="RefreshEvents"
+                   OnEditEvent="HandleEditEvent" />
+
+<!-- Create Event Modal -->
+@if (ShowCreateButton)
+{
+    <CreateEventModal @ref="CreateEventModal" 
+                      OnEventCreated="RefreshEvents" 
+                      UserId="@UserId" 
+                      UserRole="@UserRole" />
+}
+
+<!-- Edit Event Modal -->
+<EventEditModal @ref="EventEditModal"
+               OnEventUpdated="RefreshEvents"
+               UserId="@UserId"
+               UserRole="@UserRole" />
+
+@code {    [Parameter] public string UserId { get; set; } = string.Empty;
+    [Parameter] public string UserRole { get; set; } = string.Empty;
+    [Parameter] public bool ShowCreateButton { get; set; } = false;
+    
+    private CalendarViewType CurrentView = CalendarViewType.Month;
+    private DateTime CurrentDate = DateTime.Today;
+    private List<AcademicEvent> AllEvents = new();
+    private List<AcademicEvent> FilteredEvents = new();
+    private List<CalendarEvent> CalendarEvents = new();
+    private List<TimelineGroup> TimelineGroups = new();
+    private List<TimelineEvent> FlatTimelineEvents = new();
+    private List<string> AvailableCourses = new();
+    private AcademicEvent? SelectedEvent;
+    private string SelectedEventType = "";
+    private string SelectedPriority = "";
+    private string SelectedCourse = "";
+    private string SearchTerm = "";
+    private bool IsLoading = true;
+    
+    // Reference to modal components
+    private EventDetailsModal? EventDetailsModal;
+    private CreateEventModal? CreateEventModal;
+    private EventEditModal? EventEditModal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCalendarData();
+    }    private async Task LoadCalendarData()
+    {
+        IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var calendarData = await CalendarService.GetCalendarViewAsync(
+                UserId, 
+                UserRole,
+                CurrentView,
+                CurrentDate
+            );
+
+            AllEvents = calendarData.Events;
+            FilteredEvents = AllEvents.ToList();
+            AvailableCourses = calendarData.AvailableCourses;
+            
+            // Convert AcademicEvent to CalendarEvent for view components
+            CalendarEvents = AllEvents.Select(ConvertToCalendarEvent).ToList();
+            
+            // Load timeline events if in timeline view
+            if (CurrentView == CalendarViewType.Timeline)
+            {
+                TimelineGroups = await CalendarService.GetTimelineAsync(UserId, UserRole, 30, 90);
+                FlatTimelineEvents = TimelineGroups.SelectMany(g => g.Events).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading calendar data: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private int GetDaysInView()
+    {
+        return CurrentView switch
+        {
+            CalendarViewType.Day => 1,
+            CalendarViewType.Week => 7,
+            CalendarViewType.Month => 30,
+            CalendarViewType.Timeline => 14,
+            _ => 30
+        };
+    }
+
+    private void ChangeView(CalendarViewType viewType)
+    {
+        CurrentView = viewType;
+        StateHasChanged();
+    }
+
+    private async Task NavigateToPrevious()
+    {
+        CurrentDate = CurrentView switch
+        {
+            CalendarViewType.Day => CurrentDate.AddDays(-1),
+            CalendarViewType.Week => CurrentDate.AddDays(-7),
+            CalendarViewType.Month => CurrentDate.AddMonths(-1),
+            CalendarViewType.Timeline => CurrentDate.AddDays(-14),
+            _ => CurrentDate.AddMonths(-1)
+        };
+        await LoadCalendarData();
+    }
+
+    private async Task NavigateToNext()
+    {
+        CurrentDate = CurrentView switch
+        {
+            CalendarViewType.Day => CurrentDate.AddDays(1),
+            CalendarViewType.Week => CurrentDate.AddDays(7),
+            CalendarViewType.Month => CurrentDate.AddMonths(1),
+            CalendarViewType.Timeline => CurrentDate.AddDays(14),
+            _ => CurrentDate.AddMonths(1)
+        };
+        await LoadCalendarData();
+    }
+
+    private async Task GoToToday()
+    {
+        CurrentDate = DateTime.Today;
+        await LoadCalendarData();
+    }
+
+    private string GetCurrentPeriodDisplay()
+    {
+        return CurrentView switch
+        {
+            CalendarViewType.Day => CurrentDate.ToString("MMMM dd, yyyy"),
+            CalendarViewType.Week => $"Week of {CurrentDate.ToString("MMM dd, yyyy")}",
+            CalendarViewType.Month => CurrentDate.ToString("MMMM yyyy"),
+            CalendarViewType.Timeline => $"{CurrentDate.ToString("MMM dd")} - {CurrentDate.AddDays(13).ToString("MMM dd, yyyy")}",
+            _ => CurrentDate.ToString("MMMM yyyy")
+        };
+    }
+
+    private async Task ShowEventDetails(AcademicEvent academicEvent)
+    {
+        if (academicEvent == null) return;
+        
+        SelectedEvent = academicEvent;
+        if (EventDetailsModal != null)
+        {
+            await EventDetailsModal.ShowAsync(academicEvent);
+        }
+    }
+
+    private async Task HandleEditEvent(AcademicEvent eventToEdit)
+    {
+        if (eventToEdit == null || EventEditModal == null) return;
+          // Convert AcademicEvent to CalendarEvent for edit modal
+        var calendarEvent = new CalendarEvent
+        {
+            Id = eventToEdit.Id,
+            Title = eventToEdit.Title,
+            Description = eventToEdit.Description,
+            Type = ConvertAcademicEventTypeToEventType(eventToEdit.EventType),
+            StartDate = eventToEdit.StartDate,
+            EndDate = eventToEdit.EndDate,
+            HasTime = !eventToEdit.IsAllDay,
+            Location = eventToEdit.Venue,
+            Priority = eventToEdit.Priority,
+            CourseId = eventToEdit.CourseId,
+            Color = eventToEdit.Color
+        };
+        
+        await EventEditModal.ShowAsync(calendarEvent);    }
+
+    private async Task ShowCreateEventModal()
+    {
+        if (CreateEventModal != null)
+        {
+            await CreateEventModal.ShowAsync(CurrentDate);
+        }
+    }    private async Task RefreshEvents()
+    {
+        await LoadCalendarData();
+    }    private async Task HandleCalendarEventClick(CalendarEvent calendarEvent)
+    {
+        // Find the corresponding AcademicEvent
+        var academicEvent = AllEvents.FirstOrDefault(e => e.Id == calendarEvent.Id);
+        if (academicEvent != null)
+        {
+            await ShowEventDetails(academicEvent);
+        }
+    }
+
+    private async Task HandleAcademicEventClick(AcademicEvent academicEvent)
+    {
+        await ShowEventDetails(academicEvent);
+    }
+
+    private async Task HandleTimelineEventClick(TimelineEvent timelineEvent)
+    {
+        // Find the corresponding AcademicEvent
+        var academicEvent = AllEvents.FirstOrDefault(e => e.Id == timelineEvent.Id);
+        if (academicEvent != null)
+        {
+            await ShowEventDetails(academicEvent);
+        }
+    }
+
+    private DateTime GetStartOfWeek(DateTime date)
+    {
+        var diff = (7 + (date.DayOfWeek - DayOfWeek.Monday)) % 7;
+        return date.AddDays(-1 * diff).Date;
+    }
+
+    private CalendarEvent ConvertToCalendarEvent(AcademicEvent academicEvent)
+    {
+        return new CalendarEvent
+        {
+            Id = academicEvent.Id,
+            Title = academicEvent.Title,
+            Description = academicEvent.Description,
+            StartDate = academicEvent.StartDate,
+            EndDate = academicEvent.EndDate,
+            HasTime = !academicEvent.IsAllDay,
+            Location = academicEvent.Venue ?? string.Empty,
+            Type = ConvertAcademicEventTypeToEventType(academicEvent.EventType),
+            Priority = academicEvent.Priority,
+            Color = academicEvent.Color,
+            CourseId = academicEvent.CourseId ?? string.Empty,
+            CourseName = academicEvent.CourseName ?? string.Empty,
+            CreatedBy = academicEvent.CreatedBy,
+            CreatedByName = academicEvent.CreatedByName
+        };
+    }
+    
+    private EventType ConvertAcademicEventTypeToEventType(AcademicEventType academicEventType)
+    {
+        return academicEventType switch
+        {
+            AcademicEventType.Assignment => EventType.Assignment,
+            AcademicEventType.Exam => EventType.Exam,
+            AcademicEventType.ClassScheduled => EventType.Class,
+            AcademicEventType.Holiday => EventType.Holiday,
+            AcademicEventType.Notice => EventType.Notice,
+            AcademicEventType.Meeting => EventType.Meeting,
+            _ => EventType.Event
+        };
+    }
+}

@@ -1,0 +1,188 @@
+@using Campus360.Models
+@using Campus360.Services
+@inject CalendarService CalendarService
+
+<div class="card h-100">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            <i class="bi bi-calendar3 me-2"></i>@Title
+        </h6>
+        @if (!string.IsNullOrEmpty(ViewAllUrl))
+        {
+            <a href="@ViewAllUrl" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-arrow-right"></i>
+            </a>
+        }
+    </div>
+    <div class="card-body p-0">
+        @if (isLoading)
+        {
+            <div class="text-center p-3">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        }
+        else if (events?.Any() == true)
+        {
+            <div class="list-group list-group-flush">
+                @foreach (var eventItem in events.Take(MaxEvents))
+                {
+                    <div class="list-group-item border-0 px-3 py-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-1">
+                                    <span class="badge rounded-pill me-2" 
+                                          style="background-color: @GetEventTypeColor(eventItem.Type); font-size: 0.7rem;">
+                                        @eventItem.Type.ToString()
+                                    </span>
+                                    <small class="text-muted">
+                                        @eventItem.StartDate.ToString("MMM dd")
+                                        @if (eventItem.StartDate.Date == DateTime.Today)
+                                        {
+                                            <span class="badge bg-success ms-1">Today</span>
+                                        }
+                                        else if (eventItem.StartDate.Date == DateTime.Today.AddDays(1))
+                                        {
+                                            <span class="badge bg-info ms-1">Tomorrow</span>
+                                        }
+                                    </small>
+                                </div>
+                                <h6 class="mb-1 fw-medium" style="font-size: 0.9rem;">@eventItem.Title</h6>
+                                @if (!string.IsNullOrEmpty(eventItem.Description) && ShowDescription)
+                                {
+                                    <p class="mb-1 text-muted" style="font-size: 0.8rem;">
+                                        @(eventItem.Description.Length > 60 ? eventItem.Description.Substring(0, 60) + "..." : eventItem.Description)
+                                    </p>
+                                }
+                                @if (eventItem.HasTime)
+                                {
+                                    <small class="text-muted">
+                                        <i class="bi bi-clock me-1"></i>
+                                        @eventItem.StartDate.ToString("h:mm tt")
+                                        @if (eventItem.EndDate.HasValue)
+                                        {
+                                            @: - @eventItem.EndDate.Value.ToString("h:mm tt")
+                                        }
+                                    </small>
+                                }
+                            </div>
+                            @if (ShowPriority && eventItem.Priority != EventPriority.Normal)
+                            {
+                                <span class="badge @GetPriorityClass(eventItem.Priority)" style="font-size: 0.7rem;">
+                                    @eventItem.Priority
+                                </span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+            
+            @if (events.Count > MaxEvents)
+            {
+                <div class="card-footer text-center bg-light">
+                    <small class="text-muted">
+                        +@(events.Count - MaxEvents) more events
+                        @if (!string.IsNullOrEmpty(ViewAllUrl))
+                        {
+                            <a href="@ViewAllUrl" class="ms-2">View all</a>
+                        }
+                    </small>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="text-center p-4">
+                <i class="bi bi-calendar-x text-muted" style="font-size: 2rem;"></i>
+                <p class="text-muted mt-2 mb-0">No @(FilterType?.ToString().ToLower() ?? "upcoming") events</p>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Upcoming Events";
+    [Parameter] public string? ViewAllUrl { get; set; }
+    [Parameter] public int MaxEvents { get; set; } = 5;
+    [Parameter] public bool ShowDescription { get; set; } = true;
+    [Parameter] public bool ShowPriority { get; set; } = true;
+    [Parameter] public EventType? FilterType { get; set; }
+    [Parameter] public DateTime? StartDate { get; set; }
+    [Parameter] public DateTime? EndDate { get; set; }
+    [Parameter] public int DaysAhead { get; set; } = 14;
+
+    private List<CalendarEvent> events = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEvents();
+    }
+
+    private async Task LoadEvents()
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var startDate = StartDate ?? DateTime.Today;
+            var endDate = EndDate ?? DateTime.Today.AddDays(DaysAhead);
+
+            events = await CalendarService.GetEventsAsync(startDate, endDate);
+
+            if (FilterType.HasValue)
+            {
+                events = events.Where(e => e.Type == FilterType.Value).ToList();
+            }
+
+            events = events
+                .OrderBy(e => e.StartDate)
+                .ThenBy(e => e.Priority)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading calendar events: {ex.Message}");
+            events = new List<CalendarEvent>();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    public async Task RefreshAsync()
+    {
+        await LoadEvents();
+    }
+
+    private string GetEventTypeColor(EventType type)
+    {
+        return type switch
+        {
+            EventType.Assignment => "#fd7e14",    // Orange
+            EventType.Exam => "#dc3545",          // Red
+            EventType.Class => "#0d6efd",         // Blue
+            EventType.Event => "#6f42c1",         // Purple
+            EventType.Holiday => "#198754",       // Green
+            EventType.Notice => "#20c997",        // Teal
+            EventType.Meeting => "#6610f2",       // Indigo
+            EventType.Deadline => "#d63384",      // Pink
+            _ => "#6c757d"                        // Gray
+        };
+    }
+
+    private string GetPriorityClass(EventPriority priority)
+    {
+        return priority switch
+        {
+            EventPriority.High => "bg-danger",
+            EventPriority.Normal => "bg-warning",
+            EventPriority.Low => "bg-secondary",
+            _ => "bg-light text-dark"
+        };
+    }
+}

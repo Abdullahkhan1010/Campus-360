@@ -1,0 +1,29 @@
+@using Campus360.Models
+
+<div class="card">
+    <div class="card-header bg-@Color text-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h4 class="mb-0">@Value</h4>
+                <p class="mb-0 opacity-75">@Label</p>
+            </div>
+            <div class="align-self-center">
+                <i class="bi bi-@Icon" style="font-size: 2.5rem; opacity: 0.8;"></i>
+            </div>
+        </div>
+    </div>
+    @if (!string.IsNullOrEmpty(SubText))
+    {
+        <div class="card-body py-2">
+            <small class="text-muted">@SubText</small>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Value { get; set; } = "0";
+    [Parameter] public string Label { get; set; } = "Metric";
+    [Parameter] public string Icon { get; set; } = "graph-up";
+    [Parameter] public string Color { get; set; } = "primary";
+    [Parameter] public string? SubText { get; set; }
+}

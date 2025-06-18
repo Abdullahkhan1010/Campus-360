@@ -1,0 +1,369 @@
+@page "/admin/automation-test"
+@layout ModernAdminLayout_Fixed
+@using Campus360.Models
+@using Campus360.Services
+@using Microsoft.JSInterop
+@inject AutomationTestService TestService
+@inject IJSRuntime JSRuntime
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-1">
+                                <i class="fas fa-flask me-2 text-primary"></i>
+                                Automation System Testing
+                            </h3>
+                            <p class="text-muted mb-0">Test and validate automation triggers and system health</p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-primary" @onclick="CheckSystemHealth" disabled="@isLoading">
+                                <i class="fas fa-heartbeat me-1"></i> Check Health
+                            </button>
+                            <button class="btn btn-primary" @onclick="RunAllTests" disabled="@isLoading">
+                                <i class="fas fa-play me-1"></i> Run All Tests
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3 text-muted">Running automation tests...</p>
+                </div>
+            }
+            else
+            {
+                <!-- System Health Status -->
+                @if (systemHealth != null)
+                {
+                    <div class="card shadow-sm border-0 mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">
+                                <i class="fas fa-heartbeat me-2"></i>
+                                System Health Status
+                                @if (systemHealth.SystemHealthy)
+                                {
+                                    <span class="badge bg-success ms-2">Healthy</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger ms-2">Issues Detected</span>
+                                }
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h4 class="text-primary">@systemHealth.RulesAvailable</h4>
+                                        <small class="text-muted">Rules Available</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h4 class="text-success">@systemHealth.ActiveRules</h4>
+                                        <small class="text-muted">Active Rules</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h4 class="text-info">@systemHealth.TotalNotificationsSent</h4>
+                                        <small class="text-muted">Total Notifications</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h4 class="text-warning">@systemHealth.OverallSuccessRate.ToString("F1")%</h4>
+                                        <small class="text-muted">Success Rate</small>
+                                    </div>
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(systemHealth.ErrorMessage))
+                            {
+                                <div class="alert alert-danger mt-3">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    @systemHealth.ErrorMessage
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- Individual Test Triggers -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cogs me-2"></i>
+                            Individual Test Triggers
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6 col-lg-4">
+                                <button class="btn btn-outline-warning w-100" @onclick="TestLowAttendance" disabled="@isRunningTest">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    Test Low Attendance Alert
+                                </button>
+                            </div>
+                            <div class="col-md-6 col-lg-4">
+                                <button class="btn btn-outline-info w-100" @onclick="TestAssignmentUpload" disabled="@isRunningTest">
+                                    <i class="fas fa-upload me-2"></i>
+                                    Test Assignment Upload
+                                </button>
+                            </div>
+                            <div class="col-md-6 col-lg-4">
+                                <button class="btn btn-outline-primary w-100" @onclick="TestDeadlineReminder" disabled="@isRunningTest">
+                                    <i class="fas fa-clock me-2"></i>
+                                    Test Deadline Reminder
+                                </button>
+                            </div>
+                            <div class="col-md-6 col-lg-4">
+                                <button class="btn btn-outline-success w-100" @onclick="TestResultNotification" disabled="@isRunningTest">
+                                    <i class="fas fa-chart-line me-2"></i>
+                                    Test Result Notification
+                                </button>
+                            </div>
+                            <div class="col-md-6 col-lg-4">
+                                <button class="btn btn-outline-danger w-100" @onclick="TestClassCancellation" disabled="@isRunningTest">
+                                    <i class="fas fa-times-circle me-2"></i>
+                                    Test Class Cancellation
+                                </button>
+                            </div>
+                            <div class="col-md-6 col-lg-4">
+                                <button class="btn btn-outline-secondary w-100" @onclick="TestNoticePublication" disabled="@isRunningTest">
+                                    <i class="fas fa-bullhorn me-2"></i>
+                                    Test Notice Publication
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Test Results -->
+                @if (testResults != null)
+                {
+                    <div class="card shadow-sm border-0">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">
+                                <i class="fas fa-clipboard-check me-2"></i>
+                                Test Results
+                                @if (testResults.OverallSuccess)
+                                {
+                                    <span class="badge bg-success ms-2">All Tests Passed</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning ms-2">Some Tests Failed</span>
+                                }
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Test Results Summary</h6>
+                                    <div class="list-group list-group-flush">
+                                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                                            Low Attendance Alert
+                                            <span class="badge @(testResults.LowAttendanceTest ? "bg-success" : "bg-danger")">
+                                                @(testResults.LowAttendanceTest ? "PASS" : "FAIL")
+                                            </span>
+                                        </div>
+                                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                                            Assignment Upload Notification
+                                            <span class="badge @(testResults.AssignmentUploadTest ? "bg-success" : "bg-danger")">
+                                                @(testResults.AssignmentUploadTest ? "PASS" : "FAIL")
+                                            </span>
+                                        </div>
+                                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                                            Deadline Reminder
+                                            <span class="badge @(testResults.DeadlineReminderTest ? "bg-success" : "bg-danger")">
+                                                @(testResults.DeadlineReminderTest ? "PASS" : "FAIL")
+                                            </span>
+                                        </div>
+                                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                                            Result Notification
+                                            <span class="badge @(testResults.ResultNotificationTest ? "bg-success" : "bg-danger")">
+                                                @(testResults.ResultNotificationTest ? "PASS" : "FAIL")
+                                            </span>
+                                        </div>
+                                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                                            Class Cancellation Notice
+                                            <span class="badge @(testResults.ClassCancellationTest ? "bg-success" : "bg-danger")">
+                                                @(testResults.ClassCancellationTest ? "PASS" : "FAIL")
+                                            </span>
+                                        </div>
+                                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                                            Notice Publication Alert
+                                            <span class="badge @(testResults.NoticePublicationTest ? "bg-success" : "bg-danger")">
+                                                @(testResults.NoticePublicationTest ? "PASS" : "FAIL")
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Test Information</h6>
+                                    <p><strong>Completed At:</strong> @testResults.TestCompletedAt.ToString("MMM dd, yyyy HH:mm:ss")</p>
+                                    <p><strong>Overall Success:</strong> 
+                                        @if (testResults.OverallSuccess)
+                                        {
+                                            <span class="text-success">✓ All tests passed</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-warning">⚠ Some tests failed</span>
+                                        }
+                                    </p>
+                                    @if (!string.IsNullOrEmpty(testResults.ErrorMessage))
+                                    {
+                                        <div class="alert alert-danger">
+                                            <strong>Error:</strong> @testResults.ErrorMessage
+                                        </div>
+                                    }
+                                    
+                                    <div class="mt-3">
+                                        <small class="text-muted">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Tests create sample automation logs that can be viewed in the 
+                                            <a href="/admin/automation-logs">Automation Logs</a> page.
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private AutomationTestResults? testResults;
+    private AutomationSystemHealth? systemHealth;
+    private bool isLoading = false;
+    private bool isRunningTest = false;
+    private string? statusMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckSystemHealth();
+    }
+
+    private async Task CheckSystemHealth()
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            systemHealth = await TestService.GetSystemHealth();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error checking system health: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RunAllTests()
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            testResults = await TestService.RunAllTests();
+            
+            if (testResults.OverallSuccess)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "All automation tests completed successfully! Check the automation logs for detailed results.");
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Some automation tests failed. Please check the results and system configuration.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error running automation tests: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task TestLowAttendance()
+    {
+        await RunSingleTest(async () => await TestService.TestLowAttendanceAlert(), "Low Attendance Alert");
+    }
+
+    private async Task TestAssignmentUpload()
+    {
+        await RunSingleTest(async () => await TestService.TestAssignmentUploadNotification(), "Assignment Upload Notification");
+    }
+
+    private async Task TestDeadlineReminder()
+    {
+        await RunSingleTest(async () => await TestService.TestAssignmentDeadlineReminder(), "Assignment Deadline Reminder");
+    }
+
+    private async Task TestResultNotification()
+    {
+        await RunSingleTest(async () => await TestService.TestResultNotification(), "Result Notification");
+    }
+
+    private async Task TestClassCancellation()
+    {
+        await RunSingleTest(async () => await TestService.TestClassCancellationNotice(), "Class Cancellation Notice");
+    }
+
+    private async Task TestNoticePublication()
+    {
+        await RunSingleTest(async () => await TestService.TestNoticePublicationAlert(), "Notice Publication Alert");
+    }
+
+    private async Task RunSingleTest(Func<Task<bool>> testFunction, string testName)
+    {
+        try
+        {
+            isRunningTest = true;
+            StateHasChanged();
+
+            var success = await testFunction();
+            
+            if (success)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"{testName} test completed successfully!");
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"{testName} test failed. Check the automation logs for details.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error running {testName} test: {ex.Message}");
+        }
+        finally
+        {
+            isRunningTest = false;
+            StateHasChanged();
+        }
+    }
+}

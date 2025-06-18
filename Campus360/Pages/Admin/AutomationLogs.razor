@@ -1,0 +1,50 @@
+@page "/admin/automationlogs"
+@using Campus360.Models
+@inject AdminService AdminService
+@inject NavigationManager NavigationManager
+
+<h3>Activity Logs</h3>
+
+@if (logs == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!logs.Any())
+{
+    <p>No activity logs found.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Title</th>
+                <th>Type</th>
+                <th>User</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var log in logs)
+            {
+                <tr>
+                    <td>@log.Timestamp.ToString("g")</td>
+                    <td>@log.Title</td>
+                    <td>@log.Type</td>
+                    <td>@log.UserName</td>
+                    <td>@log.Description</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ActivityModel> logs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        logs = await AdminService.GetRecentActivitiesAsync(50);
+    }
+}

@@ -1,0 +1,519 @@
+@using Campus360.Models
+@using Campus360.Services
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using System.ComponentModel.DataAnnotations
+@inject FileManagementService FileService
+@inject UserContextService UserContext
+@inject IJSRuntime JSRuntime
+
+<div class="modal fade" id="@ModalId" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-cloud-upload-alt text-primary me-2"></i>
+                    Upload File
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            
+            <EditForm Model="uploadModel" OnValidSubmit="HandleUpload">
+                <DataAnnotationsValidator />
+                
+                <div class="modal-body">
+                    @if (isUploading)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary mb-3" role="status">
+                                <span class="visually-hidden">Uploading...</span>
+                            </div>
+                            <h5>Uploading file...</h5>
+                            <p class="text-muted">Please wait while your file is being uploaded.</p>
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: @(uploadProgress)%" 
+                                     aria-valuenow="@uploadProgress" aria-valuemin="0" aria-valuemax="100">
+                                    @(uploadProgress)%
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                @errorMessage
+                            </div>
+                        }
+
+                        <!-- File Selection -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-file me-2"></i>Select File *
+                            </label>
+                            <div class="file-drop-zone @(isDragOver ? "drag-over" : "")"
+                                 @ondrop="HandleFileDrop" 
+                                 @ondragover="HandleDragOver" 
+                                 @ondragenter="HandleDragEnter" 
+                                 @ondragleave="HandleDragLeave"                                 @onclick="TriggerFileInput">
+                                  <InputFile @ref="fileInput" OnChange="HandleFileSelection" 
+                                          multiple="false" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png" 
+                                          style="display: none;" />
+                                          
+                                @if (selectedFile != null)
+                                {
+                                    <div class="selected-file">
+                                        <i class="fas fa-file-alt text-primary fs-1 mb-2"></i>
+                                        <h6 class="mb-1">@selectedFile.Name</h6>
+                                        <small class="text-muted">@FormatFileSize(selectedFile.Size)</small>
+                                        <div class="mt-2">
+                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="ClearFile">
+                                                <i class="fas fa-times me-1"></i>Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="drop-zone-content">
+                                        <i class="fas fa-cloud-upload-alt text-muted fs-1 mb-3"></i>
+                                        <h6 class="mb-2">Drop files here or click to browse</h6>
+                                        <p class="text-muted mb-0">
+                                            Supported formats: PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, JPG, PNG
+                                        </p>
+                                        <small class="text-muted">Maximum file size: 50MB</small>
+                                    </div>
+                                }
+                            </div>
+                            <ValidationMessage For="@(() => uploadModel.FileName)" />
+                        </div>
+
+                        <div class="row">
+                            <!-- File Type -->
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-tag me-2"></i>File Type *
+                                    </label>
+                                    <InputSelect @bind-Value="uploadModel.FileType" class="form-select">
+                                        <option value="">-- Select File Type --</option>
+                                        <option value="@FileType.Assignment">📝 Assignment</option>
+                                        <option value="@FileType.Notes">📚 Lecture Notes</option>
+                                        <option value="@FileType.Result">📊 Results</option>
+                                        <option value="@FileType.Notice">📢 Notice</option>
+                                        <option value="@FileType.StudyMaterial">📖 Study Material</option>
+                                        <option value="@FileType.Syllabus">📋 Syllabus</option>
+                                        <option value="@FileType.Timetable">🗓️ Timetable</option>
+                                        <option value="@FileType.Circular">📃 Circular</option>
+                                        <option value="@FileType.Other">📄 Other</option>
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => uploadModel.FileType)" />
+                                </div>
+                            </div>
+
+                            <!-- Visibility -->
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-eye me-2"></i>Visibility *
+                                    </label>
+                                    <InputSelect @bind-Value="uploadModel.Visibility" class="form-select">
+                                        <option value="">-- Select Visibility --</option>
+                                        <option value="@FileVisibility.Public">🌐 Public (All Users)</option>
+                                        <option value="@FileVisibility.Student">👨‍🎓 Students Only</option>
+                                        <option value="@FileVisibility.Teacher">👩‍🏫 Teachers Only</option>
+                                        <option value="@FileVisibility.Admin">👨‍💼 Admins Only</option>
+                                        <option value="@FileVisibility.Department">🏢 Department Members</option>
+                                        <option value="@FileVisibility.Course">📚 Course Enrollees</option>
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => uploadModel.Visibility)" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Course/Subject Selection -->
+                        @if (uploadModel.Visibility == FileVisibility.Course || uploadModel.FileType == FileType.Assignment || uploadModel.FileType == FileType.Notes)
+                        {
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-book me-2"></i>Course
+                                        </label>
+                                        <InputSelect @bind-Value="uploadModel.CourseId" class="form-select">
+                                            <option value="">-- Select Course --</option>
+                                            @foreach (var course in availableCourses)
+                                            {
+                                                <option value="@course.Id">@course.Name (@course.Code)</option>
+                                            }
+                                        </InputSelect>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-building me-2"></i>Department
+                                        </label>
+                                        <InputSelect @bind-Value="uploadModel.DepartmentId" class="form-select">
+                                            <option value="">-- Select Department --</option>
+                                            @foreach (var dept in availableDepartments)
+                                            {
+                                                <option value="@dept.Id">@dept.Name</option>
+                                            }
+                                        </InputSelect>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Description -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-align-left me-2"></i>Description
+                            </label>
+                            <InputTextArea @bind-Value="uploadModel.Description" class="form-control" 
+                                          rows="3" placeholder="Enter file description or instructions..."></InputTextArea>
+                            <ValidationMessage For="@(() => uploadModel.Description)" />
+                        </div>
+
+                        <!-- Assignment Specific Fields -->
+                        @if (uploadModel.FileType == FileType.Assignment)
+                        {
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-calendar-alt me-2"></i>Due Date
+                                        </label>
+                                        <InputDate @bind-Value="uploadModel.DueDate" class="form-control" />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-star me-2"></i>Maximum Score
+                                        </label>
+                                        <InputNumber @bind-Value="uploadModel.MaxScore" class="form-control" placeholder="e.g., 100" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Notice Specific Fields -->
+                        @if (uploadModel.FileType == FileType.Notice)
+                        {
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-exclamation-circle me-2"></i>Priority
+                                        </label>
+                                        <InputSelect @bind-Value="uploadModel.Priority" class="form-select">
+                                            <option value="@NoticePriority.Low">🟢 Low</option>
+                                            <option value="@NoticePriority.Normal">🟡 Normal</option>
+                                            <option value="@NoticePriority.High">🟠 High</option>
+                                            <option value="@NoticePriority.Urgent">🔴 Urgent</option>
+                                        </InputSelect>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-calendar-times me-2"></i>Expiry Date
+                                        </label>
+                                        <InputDate @bind-Value="uploadModel.ExpiryDate" class="form-control" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Result Specific Fields -->
+                        @if (uploadModel.FileType == FileType.Result)
+                        {
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-clipboard-list me-2"></i>Exam Type
+                                        </label>
+                                        <InputText @bind-Value="uploadModel.ExamType" class="form-control" placeholder="e.g., Midterm, Final, Quiz" />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-graduation-cap me-2"></i>Semester
+                                        </label>
+                                        <InputText @bind-Value="uploadModel.Semester" class="form-control" placeholder="e.g., Fall 2024" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Tags -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-tags me-2"></i>Tags
+                            </label>
+                            <InputText @bind-Value="tagsInput" class="form-control" 
+                                      placeholder="Enter tags separated by commas (e.g., programming, assignment, week1)" />
+                            <div class="form-text">Separate multiple tags with commas</div>
+                            @if (uploadModel.Tags.Any())
+                            {
+                                <div class="mt-2">
+                                    @foreach (var tag in uploadModel.Tags)
+                                    {
+                                        <span class="badge bg-secondary me-2 mb-1">
+                                            @tag
+                                            <button type="button" class="btn-close btn-close-white ms-1" 
+                                                    style="font-size: 0.6em" @onclick="() => RemoveTag(tag)"></button>
+                                        </span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" disabled="@isUploading">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary" disabled="@(isUploading || selectedFile == null)">
+                        @if (isUploading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            <span>Uploading...</span>
+                        }
+                        else
+                        {
+                            <i class="fas fa-upload me-2"></i>
+                            <span>Upload File</span>
+                        }
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string ModalId { get; set; } = "fileUploadModal";
+    [Parameter] public EventCallback<FileOperationResult> OnFileUploaded { get; set; }
+    [Parameter] public List<TeacherCourse> AvailableCourses { get; set; } = new();
+    [Parameter] public List<Department> AvailableDepartments { get; set; } = new();
+
+    private FileUploadModel uploadModel = new();
+    private IBrowserFile? selectedFile;
+    private InputFile? fileInput;
+    private bool isUploading = false;
+    private bool isDragOver = false;
+    private int uploadProgress = 0;
+    private string errorMessage = string.Empty;
+    private string tagsInput = string.Empty;    private List<TeacherCourse> availableCourses = new();
+    private List<Department> availableDepartments = new();
+
+    protected override void OnParametersSet()
+    {
+        availableCourses = AvailableCourses ?? new();
+        availableDepartments = AvailableDepartments ?? new();
+    }
+
+    private void HandleFileSelection(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+        if (selectedFile != null)
+        {
+            uploadModel.FileName = selectedFile.Name;
+            uploadModel.FileSize = selectedFile.Size;
+            uploadModel.ContentType = selectedFile.ContentType;
+        }
+        errorMessage = string.Empty;
+        StateHasChanged();
+    }private void HandleFileDrop(DragEventArgs e)
+    {
+        isDragOver = false;
+        
+        // Note: In Blazor Server/WASM, drag and drop file handling requires JavaScript interop
+        // This is a placeholder for the UI feedback. Actual file handling should be done through InputFile
+        errorMessage = "Please use the file input or click to select files.";
+        StateHasChanged();
+    }
+
+    private void HandleDragOver(DragEventArgs e)
+    {
+        // Note: PreventDefault() is not available in Blazor DragEventArgs
+        // The preventDefault is handled automatically for ondragover
+    }
+
+    private void HandleDragEnter(DragEventArgs e)
+    {
+        isDragOver = true;
+        StateHasChanged();
+    }
+
+    private void HandleDragLeave(DragEventArgs e)
+    {
+        isDragOver = false;
+        StateHasChanged();
+    }    private async Task TriggerFileInput()
+    {
+        if (fileInput?.Element != null)
+        {
+            await JSRuntime.InvokeVoidAsync("eval", "arguments[0].click()", fileInput.Element);
+        }
+    }
+
+    private void ClearFile()
+    {
+        selectedFile = null;
+        uploadModel.FileName = string.Empty;
+        uploadModel.FileSize = 0;
+        uploadModel.ContentType = string.Empty;
+        errorMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private async Task HandleUpload()
+    {
+        if (selectedFile == null) return;
+
+        isUploading = true;
+        uploadProgress = 0;
+        errorMessage = string.Empty;
+
+        try
+        {
+            // Process tags
+            if (!string.IsNullOrWhiteSpace(tagsInput))
+            {
+                uploadModel.Tags = tagsInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(t => t.Trim())
+                    .Where(t => !string.IsNullOrEmpty(t))
+                    .ToList();
+            }
+
+            // Simulate upload progress
+            for (int i = 0; i <= 90; i += 10)
+            {
+                uploadProgress = i;
+                StateHasChanged();
+                await Task.Delay(200);
+            }
+
+            // Get current user
+            var currentUser = await UserContext.GetCurrentUserAsync();
+            if (currentUser == null)
+            {
+                throw new InvalidOperationException("User not authenticated");
+            }
+
+            // Upload file
+            var result = await FileService.UploadFileAsync(uploadModel, currentUser.Id);
+
+            uploadProgress = 100;
+            StateHasChanged();
+            await Task.Delay(500);
+
+            if (result.Success)
+            {
+                await OnFileUploaded.InvokeAsync(result);
+                await CloseModal();
+                ResetForm();
+            }
+            else
+            {
+                errorMessage = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Upload failed: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+            uploadProgress = 0;
+            StateHasChanged();
+        }
+    }
+
+    private void RemoveTag(string tag)
+    {
+        uploadModel.Tags.Remove(tag);
+        tagsInput = string.Join(", ", uploadModel.Tags);
+        StateHasChanged();
+    }    private async Task CloseModal()
+    {
+        var modalElement = await JSRuntime.InvokeAsync<object>("document.getElementById", ModalId);
+        var modalInstance = await JSRuntime.InvokeAsync<object>("bootstrap.Modal.getInstance", modalElement);
+        await JSRuntime.InvokeVoidAsync("eval", "arguments[0].hide()", modalInstance);
+    }
+
+    private void ResetForm()
+    {
+        uploadModel = new FileUploadModel();
+        selectedFile = null;
+        tagsInput = string.Empty;
+        errorMessage = string.Empty;
+        uploadProgress = 0;
+        isDragOver = false;
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] suffixes = { "B", "KB", "MB", "GB" };
+        int counter = 0;
+        decimal number = bytes;
+        while (Math.Round(number / 1024) >= 1)
+        {
+            number /= 1024;
+            counter++;
+        }
+        return $"{number:n1} {suffixes[counter]}";
+    }    public async Task ShowAsync()
+    {
+        var modalElement = await JSRuntime.InvokeAsync<object>("document.getElementById", ModalId);
+        var modal = await JSRuntime.InvokeAsync<object>("eval", "new bootstrap.Modal(arguments[0])", modalElement);
+        await JSRuntime.InvokeVoidAsync("eval", "arguments[0].show()", modal);
+    }
+}
+
+<style>
+.file-drop-zone {
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: #f8f9fa;
+}
+
+.file-drop-zone:hover {
+    border-color: #0d6efd;
+    background-color: #e7f3ff;
+}
+
+.file-drop-zone.drag-over {
+    border-color: #0d6efd;
+    background-color: #e7f3ff;
+    transform: scale(1.02);
+}
+
+.drop-zone-content i {
+    opacity: 0.5;
+}
+
+.selected-file {
+    padding: 1rem;
+}
+
+.selected-file i {
+    opacity: 0.7;
+}
+</style>

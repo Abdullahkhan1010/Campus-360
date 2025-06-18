@@ -1,0 +1,300 @@
+@using Campus360.Models
+@inject AdminService AdminService
+@inject IJSRuntime JSRuntime
+
+<div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@(IsEditing ? "Edit User" : "Add New User")</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <EditForm Model="UserModel" OnValidSubmit="HandleSubmit">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Full Name *</label>
+                                <InputText @bind-Value="UserModel.FullName" class="form-control" placeholder="Enter full name" />
+                                <ValidationMessage For="@(() => UserModel.FullName)" />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Email *</label>
+                                <InputText @bind-Value="UserModel.Email" class="form-control" placeholder="Enter email address" type="email" />
+                                <ValidationMessage For="@(() => UserModel.Email)" />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Role *</label>
+                                <InputSelect @bind-Value="UserModel.Role" class="form-select">
+                                    <option value="">-- Select Role --</option>
+                                    <option value="admin">Admin</option>
+                                    <option value="teacher">Teacher</option>
+                                    <option value="student">Student</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => UserModel.Role)" />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Department</label>
+                                <InputSelect @bind-Value="UserModel.DepartmentId" class="form-select" disabled="@(UserModel.Role == "admin")">
+                                    <option value="">-- Select Department --</option>
+                                    @foreach (var dept in AllDepartments)
+                                    {
+                                        <option value="@dept.Id">@dept.Name (@dept.Code)</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => UserModel.DepartmentId)" />
+                            </div>
+                        </div>                    </div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="form-check mb-3">
+                                <InputCheckbox @bind-Value="UserModel.IsVerified" class="form-check-input" />
+                                <label class="form-check-label">User is verified</label>
+                            </div>
+                        </div>
+                    </div>@if (showFeedback && !string.IsNullOrEmpty(feedbackMessage))
+                    {
+                        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show" role="alert">
+                            <div class="d-flex align-items-start">
+                                <i class="fas @(isSuccess ? "fa-check-circle" : "fa-exclamation-triangle") me-2 mt-1"></i>
+                                <div class="flex-grow-1">
+                                    <strong>@(isSuccess ? "Success!" : "Error!")</strong>
+                                    <p class="mb-2 mt-1">@feedbackMessage</p>
+                                    
+                                    @if (isSuccess && !string.IsNullOrEmpty(generatedPassword) && !IsEditing)
+                                    {
+                                        <div class="mt-3 p-3 bg-light rounded border">
+                                            <h6 class="text-primary mb-3">
+                                                <i class="fas fa-key me-1"></i>
+                                                Login Credentials Generated
+                                            </h6>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label class="form-label small text-muted">Email:</label>                                                    <div class="input-group input-group-sm mb-2">
+                                                        <input type="text" class="form-control" value="@createdUserEmail" readonly>
+                                                        <button class="btn btn-outline-secondary" type="button" @onclick="CopyEmailToClipboard">
+                                                            <i class="fas fa-copy"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label small text-muted">Password:</label>
+                                                    <div class="input-group input-group-sm mb-2">
+                                                        <input type="@(showPassword ? "text" : "password")" class="form-control" value="@generatedPassword" readonly>
+                                                        <button class="btn btn-outline-secondary" type="button" @onclick="TogglePasswordVisibility">
+                                                            <i class="fas @(showPassword ? "fa-eye-slash" : "fa-eye")"></i>
+                                                        </button>
+                                                        <button class="btn btn-outline-secondary" type="button" @onclick="CopyPasswordToClipboard">
+                                                            <i class="fas fa-copy"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="alert alert-info mb-0">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                <small>Please share these credentials securely with the user. They should change their password after first login.</small>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                                <button type="button" class="btn-close" @onclick="() => showFeedback = false"></button>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                            @if (IsSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            @(IsEditing ? "Update User" : "Create User")
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {    [Parameter] public EventCallback OnUserSaved { get; set; }
+    [Parameter] public EventCallback<string> OnUserCreationMessage { get; set; }
+
+    private UserCreateModel UserModel = new();
+    private List<Department> AllDepartments = new();
+    private bool IsSubmitting = false;
+    private bool IsEditing = false;
+    private string? feedbackMessage = null;
+    private bool showFeedback = false;
+    private bool isSuccess = false;
+    private string? generatedPassword = null;
+    private string? createdUserEmail = null;
+    private bool showPassword = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AllDepartments = await AdminService.GetDepartmentsAsync();
+    }    public async Task ShowAsync(UserManagementModel? existingUser = null)
+    {
+        IsEditing = existingUser != null;
+        feedbackMessage = null;
+        showFeedback = false;
+        generatedPassword = null;
+        createdUserEmail = null;
+        showPassword = false;
+        
+        if (IsEditing && existingUser != null)
+        {
+            UserModel = new UserCreateModel
+            {
+                Id = existingUser.Id,
+                FullName = existingUser.FullName,
+                Email = existingUser.Email,
+                Role = existingUser.Role,
+                DepartmentId = existingUser.DepartmentId,
+                IsVerified = existingUser.IsVerified
+            };
+        }
+        else
+        {
+            UserModel = new UserCreateModel();
+        }
+
+        await JSRuntime.InvokeVoidAsync("showModal", "userModal");
+    }    private async Task HandleSubmit()
+    {
+        IsSubmitting = true;
+        feedbackMessage = null;
+        showFeedback = false;
+        generatedPassword = null;
+        createdUserEmail = null;
+        
+        try
+        {
+            if (IsEditing)
+            {
+                var success = await AdminService.UpdateUserAsync(UserModel);
+                if (success)
+                {
+                    await JSRuntime.InvokeVoidAsync("hideModal", "userModal");
+                    await OnUserSaved.InvokeAsync();
+                    await OnUserCreationMessage.InvokeAsync("User updated successfully!");
+                }
+                else
+                {
+                    ShowFeedback("Failed to update user. Please try again.", false);
+                }
+            }
+            else
+            {
+                var result = await AdminService.CreateUserAsync(UserModel);
+                if (result.Success)
+                {
+                    // Store credentials for display
+                    generatedPassword = result.GeneratedPassword;
+                    createdUserEmail = result.Email;
+                    
+                    // Show success message with credentials
+                    ShowFeedback(result.Message, true);
+                    
+                    // Don't auto-close if we have credentials to show
+                    if (string.IsNullOrEmpty(generatedPassword))
+                    {
+                        await Task.Delay(3000);
+                        await JSRuntime.InvokeVoidAsync("hideModal", "userModal");
+                        await OnUserSaved.InvokeAsync();
+                    }
+                    else
+                    {
+                        // Just refresh the user list without closing modal
+                        await OnUserSaved.InvokeAsync();
+                    }
+                }
+                else
+                {
+                    ShowFeedback(result.Message, false);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowFeedback($"An error occurred: {ex.Message}", false);
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private void ShowFeedback(string message, bool success)
+    {
+        feedbackMessage = message;
+        isSuccess = success;
+        showFeedback = true;
+        StateHasChanged();
+    }
+
+    private void TogglePasswordVisibility()
+    {
+        showPassword = !showPassword;
+    }    private async Task CopyToClipboard(string text, string type)
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+            await JSRuntime.InvokeVoidAsync("showToast", $"{type} copied to clipboard!", "success");
+        }
+        catch
+        {
+            // Fallback for older browsers
+            await JSRuntime.InvokeVoidAsync("fallbackCopyToClipboard", text);
+        }
+    }
+
+    private async Task CopyEmailToClipboard()
+    {
+        if (!string.IsNullOrEmpty(createdUserEmail))
+        {
+            await CopyToClipboard(createdUserEmail, "Email");
+        }
+    }
+
+    private async Task CopyPasswordToClipboard()
+    {
+        if (!string.IsNullOrEmpty(generatedPassword))
+        {
+            await CopyToClipboard(generatedPassword, "Password");
+        }
+    }public class UserCreateModel
+    {
+        public string Id { get; set; } = "";
+        
+        [Required(ErrorMessage = "Full name is required")]
+        [StringLength(100, ErrorMessage = "Full name cannot exceed 100 characters")]
+        public string FullName { get; set; } = "";
+        
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Please enter a valid email address")]
+        public string Email { get; set; } = "";
+        
+        [Required(ErrorMessage = "Role is required")]
+        public string Role { get; set; } = "";
+        
+        public string? DepartmentId { get; set; }
+        
+        public bool IsVerified { get; set; } = true; // Default to verified for admin-created users
+    }
+}

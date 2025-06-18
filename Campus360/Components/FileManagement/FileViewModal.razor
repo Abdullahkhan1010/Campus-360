@@ -1,0 +1,443 @@
+@using Campus360.Models
+@using Campus360.Services
+@inject FileManagementService FileService
+@inject IJSRuntime JSRuntime
+
+<div class="modal fade" id="@ModalId" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title d-flex align-items-center">
+                    <i class="@GetFileIcon(fileDocument?.FileType ?? FileType.Other) text-primary me-2"></i>
+                    @fileDocument?.OriginalFileName
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            
+            <div class="modal-body">
+                @if (isLoading)
+                {
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h5>Loading file details...</h5>
+                    </div>
+                }
+                else if (fileDocument != null)
+                {
+                    <div class="row">
+                        <!-- File Preview/Info Column -->
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-eye me-2"></i>File Preview
+                                    </h6>
+                                </div>
+                                <div class="card-body text-center" style="min-height: 400px;">
+                                    @if (CanPreviewFile(fileDocument.ContentType))
+                                    {
+                                        @if (fileDocument.ContentType == "application/pdf")
+                                        {
+                                            <iframe src="@fileDocument.FileUrl" 
+                                                    width="100%" height="400px" 
+                                                    style="border: none; border-radius: 8px;">
+                                                <p>Your browser does not support PDFs. 
+                                                   <a href="@fileDocument.FileUrl" target="_blank">Download the PDF</a>
+                                                </p>
+                                            </iframe>
+                                        }
+                                        else if (IsImageFile(fileDocument.ContentType))
+                                        {
+                                            <img src="@fileDocument.FileUrl" 
+                                                 class="img-fluid rounded" 
+                                                 alt="@fileDocument.OriginalFileName"
+                                                 style="max-height: 400px; object-fit: contain;" />
+                                        }
+                                        else
+                                        {
+                                            <div class="d-flex flex-column align-items-center justify-content-center" style="height: 400px;">
+                                                <i class="@GetFileIcon(fileDocument.FileType) fs-1 text-muted mb-3"></i>
+                                                <h5 class="text-muted">Preview not available</h5>
+                                                <p class="text-muted">This file type cannot be previewed in the browser</p>
+                                                <button class="btn btn-primary" @onclick="DownloadFile">
+                                                    <i class="fas fa-download me-2"></i>Download to View
+                                                </button>
+                                            </div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex flex-column align-items-center justify-content-center" style="height: 400px;">
+                                            <i class="@GetFileIcon(fileDocument.FileType) fs-1 text-muted mb-3"></i>
+                                            <h5 class="text-muted">No preview available</h5>
+                                            <p class="text-muted">Click download to view this file</p>
+                                            <button class="btn btn-primary" @onclick="DownloadFile">
+                                                <i class="fas fa-download me-2"></i>Download File
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- File Details Column -->
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-info-circle me-2"></i>File Details
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <!-- File Type Badge -->
+                                    <div class="mb-3">
+                                        <span class="badge bg-@GetFileTypeBadgeColor(fileDocument.FileType) fs-6">
+                                            @GetFileTypeDisplay(fileDocument.FileType)
+                                        </span>
+                                        @if (fileDocument.IsFeatured)
+                                        {
+                                            <span class="badge bg-warning ms-2">
+                                                <i class="fas fa-star me-1"></i>Featured
+                                            </span>
+                                        }
+                                    </div>
+
+                                    <!-- File Information -->
+                                    <div class="file-info">
+                                        <div class="info-item mb-2">
+                                            <strong><i class="fas fa-file me-2"></i>File Name:</strong>
+                                            <div class="text-break">@fileDocument.OriginalFileName</div>
+                                        </div>
+
+                                        <div class="info-item mb-2">
+                                            <strong><i class="fas fa-database me-2"></i>File Size:</strong>
+                                            <div>@fileDocument.FileSizeFormatted</div>
+                                        </div>
+
+                                        <div class="info-item mb-2">
+                                            <strong><i class="fas fa-calendar me-2"></i>Upload Date:</strong>
+                                            <div>@fileDocument.UploadDate.ToString("MMM dd, yyyy 'at' hh:mm tt")</div>
+                                        </div>
+
+                                        <div class="info-item mb-2">
+                                            <strong><i class="fas fa-user me-2"></i>Uploaded By:</strong>
+                                            <div>@fileDocument.UploaderName</div>
+                                        </div>
+
+                                        @if (!string.IsNullOrEmpty(fileDocument.CourseName))
+                                        {
+                                            <div class="info-item mb-2">
+                                                <strong><i class="fas fa-book me-2"></i>Course:</strong>
+                                                <div>@fileDocument.CourseName</div>
+                                            </div>
+                                        }
+
+                                        @if (!string.IsNullOrEmpty(fileDocument.DepartmentName))
+                                        {
+                                            <div class="info-item mb-2">
+                                                <strong><i class="fas fa-building me-2"></i>Department:</strong>
+                                                <div>@fileDocument.DepartmentName</div>
+                                            </div>
+                                        }
+
+                                        <div class="info-item mb-2">
+                                            <strong><i class="fas fa-download me-2"></i>Downloads:</strong>
+                                            <div>@fileDocument.DownloadCount times</div>
+                                        </div>
+
+                                        @if (fileDocument.LastDownloaded.HasValue)
+                                        {
+                                            <div class="info-item mb-2">
+                                                <strong><i class="fas fa-clock me-2"></i>Last Downloaded:</strong>
+                                                <div>@fileDocument.LastDownloaded.Value.ToString("MMM dd, yyyy 'at' hh:mm tt")</div>
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <!-- Assignment specific info -->
+                                    @if (fileDocument.FileType == FileType.Assignment && fileDocument.DueDate.HasValue)
+                                    {
+                                        <div class="alert alert-info mt-3">
+                                            <h6><i class="fas fa-calendar-alt me-2"></i>Assignment Details</h6>
+                                            <p class="mb-1"><strong>Due Date:</strong> @fileDocument.DueDate.Value.ToString("MMM dd, yyyy 'at' hh:mm tt")</p>
+                                            @if (fileDocument.MaxScore.HasValue)
+                                            {
+                                                <p class="mb-1"><strong>Max Score:</strong> @fileDocument.MaxScore points</p>
+                                            }
+                                            @if (fileDocument.IsOverdue)
+                                            {
+                                                <div class="badge bg-danger mt-2">
+                                                    <i class="fas fa-exclamation-triangle me-1"></i>Overdue
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+
+                                    <!-- Notice specific info -->
+                                    @if (fileDocument.FileType == FileType.Notice)
+                                    {
+                                        <div class="alert alert-@GetNoticePriorityClass(fileDocument.Priority) mt-3">
+                                            <h6><i class="fas fa-bullhorn me-2"></i>Notice Details</h6>
+                                            <p class="mb-1"><strong>Priority:</strong> @GetPriorityDisplay(fileDocument.Priority)</p>
+                                            @if (fileDocument.ExpiryDate.HasValue)
+                                            {
+                                                <p class="mb-1"><strong>Expires:</strong> @fileDocument.ExpiryDate.Value.ToString("MMM dd, yyyy")</p>
+                                                @if (fileDocument.IsExpired)
+                                                {
+                                                    <div class="badge bg-secondary mt-2">
+                                                        <i class="fas fa-clock me-1"></i>Expired
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    }
+
+                                    <!-- Result specific info -->
+                                    @if (fileDocument.FileType == FileType.Result)
+                                    {
+                                        <div class="alert alert-success mt-3">
+                                            <h6><i class="fas fa-chart-line me-2"></i>Result Details</h6>
+                                            @if (!string.IsNullOrEmpty(fileDocument.ExamType))
+                                            {
+                                                <p class="mb-1"><strong>Exam Type:</strong> @fileDocument.ExamType</p>
+                                            }
+                                            @if (!string.IsNullOrEmpty(fileDocument.Semester))
+                                            {
+                                                <p class="mb-1"><strong>Semester:</strong> @fileDocument.Semester</p>
+                                            }
+                                        </div>
+                                    }
+
+                                    <!-- Tags -->
+                                    @if (fileDocument.Tags.Any())
+                                    {
+                                        <div class="mt-3">
+                                            <strong><i class="fas fa-tags me-2"></i>Tags:</strong>
+                                            <div class="mt-2">
+                                                @foreach (var tag in fileDocument.Tags)
+                                                {
+                                                    <span class="badge bg-secondary me-1 mb-1">@tag</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+
+                                    <!-- Description -->
+                                    @if (!string.IsNullOrEmpty(fileDocument.Description))
+                                    {
+                                        <div class="mt-3">
+                                            <strong><i class="fas fa-align-left me-2"></i>Description:</strong>
+                                            <div class="mt-2 text-muted">@fileDocument.Description</div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-4">
+                        <i class="fas fa-exclamation-triangle text-warning fs-1 mb-3"></i>
+                        <h5>File not found</h5>
+                        <p class="text-muted">The requested file could not be loaded.</p>
+                    </div>
+                }
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Close
+                </button>
+                @if (fileDocument != null)
+                {
+                    <button type="button" class="btn btn-primary" @onclick="DownloadFile" disabled="@isDownloading">
+                        @if (isDownloading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            <span>Downloading...</span>
+                        }
+                        else
+                        {
+                            <i class="fas fa-download me-2"></i>
+                            <span>Download File</span>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string ModalId { get; set; } = "fileViewModal";
+    [Parameter] public EventCallback<string> OnFileDownloaded { get; set; }
+
+    private FileDocument? fileDocument;
+    private bool isLoading = false;
+    private bool isDownloading = false;
+
+    public async Task ShowAsync(string fileId, string userId, string userRole)
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            fileDocument = await FileService.GetFileByIdAsync(fileId);
+            
+            // Check if user can access this file
+            if (fileDocument != null)
+            {
+                var downloadResult = await FileService.GetFileDownloadUrlAsync(fileId, userId, userRole);
+                if (string.IsNullOrEmpty(downloadResult))
+                {
+                    fileDocument = null; // Access denied
+                }
+            }
+        }
+        catch
+        {
+            fileDocument = null;
+        }        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+
+        var modalElement = await JSRuntime.InvokeAsync<object>("document.getElementById", ModalId);
+        await JSRuntime.InvokeVoidAsync("new bootstrap.Modal", modalElement);
+        await JSRuntime.InvokeVoidAsync("bootstrap.Modal.getInstance", modalElement, "show");
+    }
+
+    private async Task DownloadFile()
+    {
+        if (fileDocument == null) return;
+
+        isDownloading = true;
+        StateHasChanged();
+
+        try
+        {
+            // This would trigger the actual download
+            await JSRuntime.InvokeVoidAsync("window.open", fileDocument.FileUrl, "_blank");
+            
+            // Track the download
+            await OnFileDownloaded.InvokeAsync(fileDocument.Id);
+        }
+        finally
+        {
+            isDownloading = false;
+            StateHasChanged();
+        }
+    }
+
+    private bool CanPreviewFile(string contentType)
+    {
+        return contentType == "application/pdf" || IsImageFile(contentType);
+    }
+
+    private bool IsImageFile(string contentType)
+    {
+        return contentType.StartsWith("image/");
+    }
+
+    private string GetFileIcon(FileType fileType)
+    {
+        return fileType switch
+        {
+            FileType.Assignment => "fas fa-tasks",
+            FileType.Notes => "fas fa-sticky-note",
+            FileType.Result => "fas fa-chart-bar",
+            FileType.Notice => "fas fa-bullhorn",
+            FileType.StudyMaterial => "fas fa-book",
+            FileType.Syllabus => "fas fa-list-alt",
+            FileType.Timetable => "fas fa-calendar",
+            FileType.Circular => "fas fa-info-circle",
+            _ => "fas fa-file-alt"
+        };
+    }
+
+    private string GetFileTypeDisplay(FileType fileType)
+    {
+        return fileType switch
+        {
+            FileType.Assignment => "Assignment",
+            FileType.Notes => "Lecture Notes",
+            FileType.Result => "Results",
+            FileType.Notice => "Notice",
+            FileType.StudyMaterial => "Study Material",
+            FileType.Syllabus => "Syllabus",
+            FileType.Timetable => "Timetable",
+            FileType.Circular => "Circular",
+            _ => "Document"
+        };
+    }
+
+    private string GetFileTypeBadgeColor(FileType fileType)
+    {
+        return fileType switch
+        {
+            FileType.Assignment => "primary",
+            FileType.Notes => "info",
+            FileType.Result => "success",
+            FileType.Notice => "warning",
+            FileType.StudyMaterial => "secondary",
+            FileType.Syllabus => "dark",
+            FileType.Timetable => "info",
+            FileType.Circular => "light",
+            _ => "secondary"
+        };
+    }
+
+    private string GetNoticePriorityClass(NoticePriority priority)
+    {
+        return priority switch
+        {
+            NoticePriority.Urgent => "danger",
+            NoticePriority.High => "warning",
+            NoticePriority.Normal => "info",
+            NoticePriority.Low => "light",
+            _ => "info"
+        };
+    }
+
+    private string GetPriorityDisplay(NoticePriority priority)
+    {
+        return priority switch
+        {
+            NoticePriority.Urgent => "🔴 Urgent",
+            NoticePriority.High => "🟠 High",
+            NoticePriority.Normal => "🟡 Normal",
+            NoticePriority.Low => "🟢 Low",
+            _ => "Normal"
+        };
+    }
+}
+
+<style>
+.file-info .info-item {
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 8px;
+}
+
+.file-info .info-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.file-info strong {
+    color: #495057;
+    font-size: 0.9em;
+}
+
+.modal-xl {
+    max-width: 1200px;
+}
+
+.text-break {
+    word-break: break-word;
+}
+</style>

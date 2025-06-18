@@ -1,0 +1,217 @@
+@* @page "/admin/dashboard"
+@layout ModernAdminLayout_Fixed
+@using Campus360.Components.Calendar
+@inject AdminService AdminService
+
+<PageTitle>Admin Dashboard - Campus360</PageTitle>
+
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">Admin Dashboard</h2>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <LoadingIndicator Message="Loading dashboard data..." />
+}
+else
+{
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <StatCard Value="@dashboardStats.TotalUsers.ToString()" 
+                     Label="Total Users" 
+                     Icon="people-fill" 
+                     Color="primary" 
+                     SubText="@($"{dashboardStats.TotalTeachers} Teachers, {dashboardStats.TotalStudents} Students")" />
+        </div>
+        <div class="col-md-3">
+            <StatCard Value="@dashboardStats.TotalDepartments.ToString()" 
+                     Label="Departments" 
+                     Icon="building" 
+                     Color="success" 
+                     SubText="Active departments" />
+        </div>
+        <div class="col-md-3">
+            <StatCard Value="@dashboardStats.ActiveCourses.ToString()" 
+                     Label="Active Courses" 
+                     Icon="book" 
+                     Color="info" 
+                     SubText="Currently running" />
+        </div>
+        <div class="col-md-3">
+            <StatCard Value="@dashboardStats.PendingApprovals.ToString()" 
+                     Label="Pending Approvals" 
+                     Icon="exclamation-triangle" 
+                     Color="warning" 
+                     SubText="Require verification" />
+        </div>
+    </div>
+
+    <!-- Main Content Row -->
+    <div class="row">
+        <!-- Recent Activities -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-activity me-2"></i>Recent Activities
+                    </h5>
+                    <a href="/admin/users" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body">
+                    @if (recentActivities.Any())
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var activity in recentActivities.Take(5))
+                            {
+                                <div class="list-group-item d-flex justify-content-between align-items-start border-0 px-0">
+                                    <div class="me-auto">
+                                        <div class="d-flex align-items-center mb-1">
+                                            <div class="activity-icon me-3">
+                                                <i class="bi bi-@GetActivityIcon(activity.Type) text-@GetActivityColor(activity.Type)"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="mb-0">@activity.Title</h6>
+                                                <small class="text-muted">@activity.Description</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">@activity.CreatedAt.ToString("MMM dd, HH:mm")</small>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-inbox display-4"></i>
+                            <p class="mt-2">No recent activities</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>        <!-- Quick Actions -->
+        <div class="col-md-4">
+            <!-- System Calendar -->
+            <div class="mb-4">
+                <MiniCalendar ViewAllUrl="/admin/calendar" />
+            </div>
+
+            <!-- Upcoming System Events -->
+            <div class="mb-4">
+                <CalendarWidget Title="System Events" 
+                               ViewAllUrl="/admin/calendar" 
+                               MaxEvents="4" 
+                               DaysAhead="14" 
+                               ShowDescription="false" />
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-lightning me-2"></i>Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="/admin/users" class="btn btn-outline-primary">
+                            <i class="bi bi-person-plus me-2"></i>Add New User
+                        </a>
+                        <a href="/admin/courses" class="btn btn-outline-success">
+                            <i class="bi bi-book me-2"></i>Create Course
+                        </a>
+                        <a href="/admin/departments" class="btn btn-outline-info">
+                            <i class="bi bi-building me-2"></i>Manage Departments
+                        </a>
+                        <a href="/admin/announcements" class="btn btn-outline-warning">
+                            <i class="bi bi-megaphone me-2"></i>Post Announcement
+                        </a>
+                        <a href="/admin/calendar" class="btn btn-outline-dark">
+                            <i class="bi bi-calendar3 me-2"></i>Calendar
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            @if (dashboardStats.PendingApprovals > 0)
+            {
+                <div class="card mt-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h6 class="mb-0">
+                            <i class="bi bi-exclamation-triangle me-2"></i>Pending Approvals
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2">You have <strong>@dashboardStats.PendingApprovals</strong> users waiting for approval.</p>
+                        <a href="/admin/users?filter=pending" class="btn btn-warning btn-sm">
+                            Review Now <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private AdminDashboardStats dashboardStats = new();
+    private List<ActivityModel> recentActivities = new();
+    private List<Department> topDepartments = new();
+    private List<Course> recentCourses = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+
+    private async Task LoadDashboardData()
+    {
+        isLoading = true;
+        
+        try
+        {
+            dashboardStats = await AdminService.GetDashboardStatsAsync();
+            recentActivities = await AdminService.GetRecentActivitiesAsync();
+            topDepartments = await AdminService.GetDepartmentsAsync();
+            recentCourses = await AdminService.GetCoursesAsync();
+        }
+        catch (Exception ex)
+        {
+            // Handle error - could show a toast notification
+            Console.WriteLine($"Error loading dashboard: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetActivityIcon(string activityType)
+    {
+        return activityType.ToLower() switch
+        {
+            "user_created" => "person-plus",
+            "user_verified" => "check-circle",
+            "course_created" => "book",
+            "department_created" => "building",
+            "user_assigned" => "person-check",
+            _ => "activity"
+        };
+    }
+
+    private string GetActivityColor(string activityType)
+    {
+        return activityType.ToLower() switch
+        {
+            "user_created" => "primary",
+            "user_verified" => "success",
+            "course_created" => "info",
+            "department_created" => "warning",
+            "user_assigned" => "success",
+            _ => "secondary"
+        };
+    }
+} *@

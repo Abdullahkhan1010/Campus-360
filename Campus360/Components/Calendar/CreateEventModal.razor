@@ -1,0 +1,361 @@
+@using Campus360.Models
+@using Campus360.Services
+@using Microsoft.AspNetCore.Components.Forms
+@using System.ComponentModel.DataAnnotations
+@inject CalendarService CalendarService
+@inject UserContextService UserContext
+@inject ActivityLogService ActivityLogService
+@inject IJSRuntime JSRuntime
+
+<!-- Create Event Modal -->
+<div class="modal fade" id="@ModalId" tabindex="-1" aria-labelledby="@($"{ModalId}Label")" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="@($"{ModalId}Label")">
+                    <i class="bi bi-calendar-plus me-2"></i>Create New Event
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <EditForm Model="@eventModel" OnValidSubmit="@CreateEvent">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label for="eventTitle" class="form-label">Event Title <span class="text-danger">*</span></label>
+                                <InputText id="eventTitle" class="form-control" @bind-Value="eventModel.Title" />
+                                <ValidationMessage For="@(() => eventModel.Title)" />
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="eventType" class="form-label">Event Type <span class="text-danger">*</span></label>
+                                <InputSelect id="eventType" class="form-select" @bind-Value="eventModel.EventType">
+                                    @foreach (var type in GetAvailableEventTypes())
+                                    {
+                                        <option value="@type">@type.ToString()</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => eventModel.EventType)" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="eventDescription" class="form-label">Description <span class="text-danger">*</span></label>
+                        <InputTextArea id="eventDescription" class="form-control" rows="3" @bind-Value="eventModel.Description" />
+                        <ValidationMessage For="@(() => eventModel.Description)" />
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="startDate" class="form-label">Start Date <span class="text-danger">*</span></label>
+                                <InputDate id="startDate" class="form-control" @bind-Value="eventModel.StartDate" />
+                                <ValidationMessage For="@(() => eventModel.StartDate)" />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="endDate" class="form-label">End Date</label>
+                                <InputDate id="endDate" class="form-control" @bind-Value="eventModel.EndDate" />
+                                <ValidationMessage For="@(() => eventModel.EndDate)" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <InputCheckbox id="isAllDay" class="form-check-input" @bind-Value="eventModel.IsAllDay" />
+                                    <label class="form-check-label" for="isAllDay">
+                                        All Day Event
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="priority" class="form-label">Priority</label>
+                                <InputSelect id="priority" class="form-select" @bind-Value="eventModel.Priority">
+                                    <option value="@EventPriority.Low">Low</option>
+                                    <option value="@EventPriority.Normal">Normal</option>
+                                    <option value="@EventPriority.High">High</option>
+                                    <option value="@EventPriority.Critical">Critical</option>
+                                    <option value="@EventPriority.Urgent">Urgent</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!eventModel.IsAllDay)
+                    {
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="startTime" class="form-label">Start Time</label>
+                                    <InputDate Type="InputDateType.Time" id="startTime" class="form-control" @bind-Value="startTimeDate" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="endTime" class="form-label">End Time</label>
+                                    <InputDate Type="InputDateType.Time" id="endTime" class="form-control" @bind-Value="endTimeDate" />
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label for="location" class="form-label">Location/Venue</label>
+                        <InputText id="location" class="form-control" @bind-Value="eventModel.Venue" />
+                    </div>
+
+                    @if (IsTeacherOrAdmin())
+                    {
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="courseId" class="form-label">Course (Optional)</label>
+                                    <InputSelect id="courseId" class="form-select" @bind-Value="eventModel.CourseId">
+                                        <option value="">-- Select Course --</option>
+                                        @foreach (var course in availableCourses)
+                                        {
+                                            <option value="@course.Id">@course.Name (@course.Code)</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="targetRole" class="form-label">Target Audience</label>
+                                    <InputSelect id="targetRole" class="form-select" @bind-Value="eventModel.TargetRole">
+                                        <option value="@EventTargetRole.Student">Students</option>
+                                        <option value="@EventTargetRole.Teacher">Teachers</option>
+                                        <option value="@EventTargetRole.All">Everyone</option>
+                                    </InputSelect>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <InputCheckbox id="hasReminder" class="form-check-input" @bind-Value="eventModel.HasReminder" />
+                                        <label class="form-check-label" for="hasReminder">
+                                            Enable Reminders
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="eventColor" class="form-label">Event Color</label>
+                                    <div class="d-flex">
+                                        @foreach (var color in eventColors)
+                                        {
+                                            string activeClass = eventModel.Color == color ? "active" : "";
+                                            <div class="color-option @activeClass me-2" 
+                                                 style="background-color: @color;" 
+                                                 @onclick="() => eventModel.Color = color"></div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" disabled="@isCreating">
+                            @if (isCreating)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            }
+                            <i class="bi bi-plus-circle me-1"></i>Create Event
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string ModalId { get; set; } = "createEventModal";
+    [Parameter] public EventCallback OnEventCreated { get; set; }
+    [Parameter] public string UserId { get; set; } = string.Empty;
+    [Parameter] public string UserRole { get; set; } = string.Empty;
+    [Parameter] public DateTime? InitialDate { get; set; }
+
+    private CreateEventModel eventModel = new();
+    private DateTime? startTimeDate;
+    private DateTime? endTimeDate;
+    private List<Course> availableCourses = new();
+    private bool isCreating = false;
+    
+    // Color options for events
+    private List<string> eventColors = new List<string>
+    {
+        "#007bff", "#28a745", "#dc3545", "#ffc107", "#17a2b8", 
+        "#6610f2", "#fd7e14", "#20c997", "#6c757d", "#e83e8c"
+    };
+
+    protected override void OnInitialized()
+    {
+        ResetForm();
+    }
+
+    private void ResetForm()
+    {
+        eventModel = new CreateEventModel
+        {
+            Title = string.Empty,
+            Description = string.Empty,
+            EventType = AcademicEventType.Other,
+            StartDate = InitialDate?.Date ?? DateTime.Today,
+            IsAllDay = false,
+            Priority = EventPriority.Normal,
+            TargetRole = EventTargetRole.All,
+            Color = "#007bff"
+        };
+        
+        startTimeDate = DateTime.Today.AddHours(9); // Default to 9 AM
+        endTimeDate = DateTime.Today.AddHours(10);  // Default to 10 AM
+    }
+
+    public async Task ShowAsync(DateTime? selectedDate = null)
+    {
+        if (selectedDate.HasValue)
+        {
+            eventModel.StartDate = selectedDate.Value.Date;
+            if (selectedDate.Value.TimeOfDay != TimeSpan.Zero)
+            {
+                startTimeDate = selectedDate.Value;
+                endTimeDate = selectedDate.Value.AddHours(1);
+                eventModel.IsAllDay = false;
+            }
+        }
+        
+        await LoadAvailableCourses();
+        StateHasChanged();
+        
+        // Show modal using JavaScript
+        await JSRuntime.InvokeVoidAsync("showModal", ModalId);
+    }
+
+    private async Task LoadAvailableCourses()
+    {
+        try
+        {
+            // In a real implementation, get courses from service
+            availableCourses = await CalendarService.GetAvailableCoursesAsync(UserId, UserRole);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading courses: {ex.Message}");
+            availableCourses = new List<Course>();
+        }
+    }
+
+    private async Task CreateEvent()
+    {
+        try
+        {
+            isCreating = true;
+            StateHasChanged();
+
+            // Process time values if not an all-day event
+            if (!eventModel.IsAllDay && startTimeDate.HasValue)
+            {
+                eventModel.StartTime = startTimeDate.Value.TimeOfDay;
+                eventModel.EndTime = endTimeDate?.TimeOfDay;
+            }            var result = await CalendarService.CreateEventAsync(
+                eventModel,
+                UserId,
+                UserRole);
+            
+            if (result.Success)
+            {
+                // Log activity for audit
+                await ActivityLogService.LogActivityAsync(
+                    UserId,
+                    "Created Calendar Event",
+                    $"Created event '{eventModel.Title}' on {eventModel.StartDate:d}",
+                    "event_created");
+                
+                await OnEventCreated.InvokeAsync();
+                // Close modal using JavaScript
+                await JSRuntime.InvokeVoidAsync("hideModal", ModalId);
+                ResetForm();
+            }
+            else
+            {
+                // Show error message
+                await JSRuntime.InvokeVoidAsync("showToast", "Error", $"Failed to create event: {result.Message}", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating event: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("showToast", "Error", "An error occurred while creating the event", "error");
+        }
+        finally
+        {
+            isCreating = false;
+            StateHasChanged();
+        }
+    }
+
+    private bool IsTeacherOrAdmin()
+    {
+        return UserRole == "Teacher" || UserRole == "Admin";
+    }
+
+    private List<AcademicEventType> GetAvailableEventTypes()
+    {
+        if (UserRole == "Admin")
+        {
+            return Enum.GetValues<AcademicEventType>().ToList();
+        }
+        else if (UserRole == "Teacher")
+        {
+            return new List<AcademicEventType> 
+            { 
+                AcademicEventType.Assignment, 
+                AcademicEventType.Exam, 
+                AcademicEventType.ClassScheduled, 
+                AcademicEventType.Meeting,
+                AcademicEventType.Notice,
+                AcademicEventType.Other
+            };
+        }
+        else
+        {
+            return new List<AcademicEventType> { AcademicEventType.Other };
+        }
+    }
+}
+
+<style>
+.color-option {
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.color-option:hover {
+    transform: scale(1.2);
+}
+
+.color-option.active {
+    border: 2px solid #000;
+    transform: scale(1.2);
+}
+</style>

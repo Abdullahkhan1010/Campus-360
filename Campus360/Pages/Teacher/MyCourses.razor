@@ -1,0 +1,219 @@
+@page "/teacher/courses"
+@layout TeacherLayout
+@inject TeacherService TeacherService
+@inject UserContextService UserContext
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+
+<PageTitle>My Courses - Campus360</PageTitle>
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold mb-0">My Courses</h2>
+        <div class="d-flex gap-2 align-items-center">
+            <input @bind="searchTerm" @bind:event="oninput" @onkeyup="FilterCourses" 
+                   class="form-control" placeholder="Search courses..." style="width: 300px;" />
+            <button class="btn btn-outline-secondary" @onclick="RefreshCourses" title="Refresh">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center my-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (filteredCourses != null && filteredCourses.Any())
+    {
+        <div class="row">
+            @foreach (var course in filteredCourses)
+            {
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                            <h6 class="mb-0">@course.CourseCode</h6>
+                            <span class="badge bg-@(course.IsActive ? "success" : "secondary")">
+                                @(course.IsActive ? "Active" : "Inactive")
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title">@course.CourseName</h5>
+                            <p class="card-text text-muted">@course.Department</p>
+                            <div class="row text-center mb-3">
+                                <div class="col-4">
+                                    <small class="text-muted">Students</small>
+                                    <div class="fw-bold">@course.EnrolledStudents</div>
+                                </div>
+                                <div class="col-4">
+                                    <small class="text-muted">Credits</small>
+                                    <div class="fw-bold">@course.Credits</div>
+                                </div>
+                                <div class="col-4">
+                                    <small class="text-muted">Semester</small>
+                                    <div class="fw-bold">@course.Semester</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info mt-4">No courses assigned to you yet.</div>
+    }
+</div>
+
+<!-- Course Details Modal -->
+<div class="modal fade" id="courseDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Course Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                @if (selectedCourse != null)
+                {
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Course Code:</strong> @selectedCourse.CourseCode
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Course Name:</strong> @selectedCourse.CourseName
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Department:</strong> @selectedCourse.Department
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Credits:</strong> @selectedCourse.Credits
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Semester:</strong> @selectedCourse.Semester
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Academic Year:</strong> @selectedCourse.AcademicYear
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4 mb-3">Enrolled Students (@courseStudents?.Count ?? 0)</h6>
+                    @if (courseStudents != null && courseStudents.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Roll Number</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Attendance %</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var student in courseStudents)
+                                    {
+                                        <tr>
+                                            <td>@student.RollNumber</td>
+                                            <td>@student.FullName</td>
+                                            <td>@student.Email</td>
+                                            <td>
+                                                <span class="badge bg-@(student.AttendancePercentage >= 75 ? "success" : student.AttendancePercentage >= 50 ? "warning" : "danger")">
+                                                    @student.AttendancePercentage.ToString("F1")%
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No students enrolled in this course.</p>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<MarkAttendanceModal @ref="markAttendanceModal" />
+
+@code {
+    private List<TeacherCourse>? allCourses;
+    private List<TeacherCourse>? filteredCourses;
+    private List<CourseStudent>? courseStudents;
+    private TeacherCourse? selectedCourse;
+    private string searchTerm = "";
+    private bool isLoading = true;
+    private MarkAttendanceModal? markAttendanceModal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCourses();
+    }
+
+    private async Task LoadCourses()
+    {
+        isLoading = true;
+        if (UserContext.CurrentUser != null)
+        {
+            allCourses = await TeacherService.GetTeacherCoursesAsync(UserContext.CurrentUser.Id);
+            filteredCourses = allCourses;
+        }
+        isLoading = false;
+    }
+
+    private void FilterCourses()
+    {
+        if (allCourses == null) return;
+
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            filteredCourses = allCourses;
+        }
+        else
+        {
+            filteredCourses = allCourses.Where(c => 
+                c.CourseName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                c.CourseCode.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                c.Department.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+    }
+
+    private async Task RefreshCourses()
+    {
+        await LoadCourses();
+    }
+
+    private async Task ViewCourseDetails(TeacherCourse course)
+    {
+        selectedCourse = course;
+        courseStudents = await TeacherService.GetCourseStudentsAsync(course.CourseId);
+        await InvokeAsync(() => JSRuntime.InvokeVoidAsync("showModal", "courseDetailsModal"));
+    }
+
+    private async Task MarkAttendance(TeacherCourse course)
+    {
+        if (markAttendanceModal != null)
+        {
+            await markAttendanceModal.ShowAsync(course.CourseId);
+        }
+    }
+
+    private void ManageResults(TeacherCourse course)
+    {
+        Navigation.NavigateTo($"/teacher/results?courseId={course.CourseId}");
+    }
+}

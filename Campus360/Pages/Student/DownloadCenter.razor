@@ -1,0 +1,497 @@
+@page "/student/download-center"
+@using Campus360.Models
+@using Campus360.Services
+@using Campus360.Components.FileManagement
+@inject FileManagementService FileService
+@inject UserContextService UserContext
+@inject IJSRuntime JSRuntime
+@attribute [Authorize]
+
+<PageTitle>Download Center - Campus360</PageTitle>
+
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">📥 Download Center</h1>
+            <p class="text-muted">Access your course materials, assignments, results, and notices</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" @onclick="RefreshFiles">
+                <i class="fas fa-sync-alt me-2"></i>Refresh
+            </button>
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="fas fa-sort me-2"></i>Sort By
+                </button>                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" @onclick='() => ChangeSorting("date")'>
+                        <i class="fas fa-calendar me-2"></i>Upload Date
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" @onclick='() => ChangeSorting("name")'>
+                        <i class="fas fa-sort-alpha-down me-2"></i>File Name
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" @onclick='() => ChangeSorting("subject")'>
+                        <i class="fas fa-book me-2"></i>Subject
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" @onclick='() => ChangeSorting("size")'>
+                        <i class="fas fa-weight me-2"></i>File Size
+                    </a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Quick Overview -->
+    @if (fileStatistics != null)
+    {
+        <div class="row mb-4">
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <div class="icon-circle bg-primary text-white mx-auto">
+                                <i class="fas fa-tasks"></i>
+                            </div>
+                        </div>
+                        <h4 class="h5 mb-1">@fileStatistics.TotalAssignments</h4>
+                        <p class="text-muted small mb-0">Available Assignments</p>
+                        @if (fileStatistics.OverdueAssignments.Any())
+                        {
+                            <small class="text-danger d-block mt-1">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                @fileStatistics.OverdueAssignments.Count overdue
+                            </small>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <div class="icon-circle bg-success text-white mx-auto">
+                                <i class="fas fa-book"></i>
+                            </div>
+                        </div>
+                        <h4 class="h5 mb-1">@fileStatistics.TotalNotes</h4>
+                        <p class="text-muted small mb-0">Study Materials</p>
+                        <small class="text-success d-block mt-1">
+                            <i class="fas fa-arrow-up me-1"></i>
+                            Available for download
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <div class="icon-circle bg-info text-white mx-auto">
+                                <i class="fas fa-chart-bar"></i>
+                            </div>
+                        </div>
+                        <h4 class="h5 mb-1">@fileStatistics.TotalResults</h4>
+                        <p class="text-muted small mb-0">Results Published</p>
+                        <small class="text-info d-block mt-1">
+                            <i class="fas fa-eye me-1"></i>
+                            Check your grades
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <div class="icon-circle bg-warning text-white mx-auto">
+                                <i class="fas fa-bullhorn"></i>
+                            </div>
+                        </div>
+                        <h4 class="h5 mb-1">@fileStatistics.TotalNotices</h4>
+                        <p class="text-muted small mb-0">Active Notices</p>
+                        @if (fileStatistics.ExpiringNotices.Any())
+                        {
+                            <small class="text-warning d-block mt-1">
+                                <i class="fas fa-clock me-1"></i>
+                                @fileStatistics.ExpiringNotices.Count expiring soon
+                            </small>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- New/Recent Files Alert -->
+    @if (fileStatistics?.RecentFiles.Any() == true)
+    {
+        <div class="alert alert-info border-0 mb-4">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-info-circle me-3 fa-2x"></i>
+                <div class="flex-grow-1">
+                    <h6 class="alert-heading mb-1">New Files Available</h6>
+                    <p class="mb-0">@fileStatistics.RecentFiles.Count new files have been uploaded recently.</p>
+                </div>
+                <button class="btn btn-info" @onclick="() => ShowRecentFiles()">
+                    <i class="fas fa-eye me-2"></i>View
+                </button>
+            </div>
+        </div>
+    }
+
+    <!-- Overdue Assignments Warning -->
+    @if (fileStatistics?.OverdueAssignments.Any() == true)
+    {
+        <div class="alert alert-danger border-0 mb-4">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle me-3 fa-2x"></i>
+                <div class="flex-grow-1">
+                    <h6 class="alert-heading mb-1">Overdue Assignments</h6>
+                    <p class="mb-0">You have @fileStatistics.OverdueAssignments.Count assignments that are past their due date.</p>
+                </div>
+                <button class="btn btn-danger" @onclick="() => ShowOverdueAssignments()">
+                    <i class="fas fa-tasks me-2"></i>View
+                </button>
+            </div>
+        </div>
+    }
+
+    <!-- File Categories -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-bottom">            <ul class="nav nav-pills nav-fill" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(selectedTab == "all" ? "active" : "")" 
+                            @onclick='() => ChangeTab("all")' type="button">
+                        <i class="fas fa-folder me-2"></i>
+                        <span class="d-none d-sm-inline">All Files</span>
+                        <span class="d-sm-none">All</span>
+                        <span class="badge bg-secondary ms-2">@GetFilteredFiles().Count</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(selectedTab == "assignments" ? "active" : "")" 
+                            @onclick='() => ChangeTab("assignments")' type="button">
+                        <i class="fas fa-tasks me-2"></i>
+                        <span class="d-none d-sm-inline">Assignments</span>
+                        <span class="d-sm-none">Tasks</span>
+                        @if (fileStatistics?.OverdueAssignments.Any() == true)
+                        {
+                            <span class="badge bg-danger ms-2">@fileStatistics.OverdueAssignments.Count</span>
+                        }
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(selectedTab == "notes" ? "active" : "")" 
+                            @onclick='() => ChangeTab("notes")' type="button">
+                        <i class="fas fa-book me-2"></i>
+                        <span class="d-none d-sm-inline">Study Materials</span>
+                        <span class="d-sm-none">Notes</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(selectedTab == "results" ? "active" : "")" 
+                            @onclick='() => ChangeTab("results")' type="button">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        <span class="d-none d-sm-inline">Results</span>
+                        <span class="d-sm-none">Results</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(selectedTab == "notices" ? "active" : "")" 
+                            @onclick='() => ChangeTab("notices")' type="button">
+                        <i class="fas fa-bullhorn me-2"></i>
+                        <span class="d-none d-sm-inline">Notices</span>
+                        <span class="d-sm-none">Notices</span>
+                        @if (fileStatistics?.ExpiringNotices.Any() == true)
+                        {
+                            <span class="badge bg-warning ms-2">@fileStatistics.ExpiringNotices.Count</span>
+                        }
+                    </button>
+                </li>
+            </ul>
+        </div>        <div class="card-body">
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3 text-muted">Loading your files...</p>
+                </div>
+            }
+            else if (!GetFilteredFiles().Any())
+            {
+                <div class="text-center py-5">
+                    <div class="mb-4">
+                        <i class="fas fa-folder-open fa-4x text-muted"></i>
+                    </div>
+                    <h5 class="text-muted">No files available</h5>
+                    <p class="text-muted">
+                        @GetEmptyStateMessage()
+                    </p>
+                </div>
+            }
+            else
+            {
+                <!-- File Browser Component -->
+                <FileBrowser @ref="fileBrowserRef"
+                            Files="GetFilteredFiles()" 
+                            ShowUploadButton="false"
+                            AllowDelete="false"
+                            AllowEdit="false"
+                            ShowStudentView="true"
+                            OnFileSelected="@(fileId => OnFileSelected(GetFilteredFiles().FirstOrDefault(f => f.Id == fileId)))" />
+            }
+        </div>
+    </div>
+
+    <!-- Download Statistics -->
+    @if (fileStatistics != null)
+    {
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>Your Download Activity
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <h4 class="text-primary">@fileStatistics.TotalDownloads</h4>
+                                    <small class="text-muted">Total Downloads</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <h4 class="text-success">@fileStatistics.DownloadsToday</h4>
+                                    <small class="text-muted">Downloads Today</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <h4 class="text-info">@fileStatistics.TotalStorageFormatted</h4>
+                                    <small class="text-muted">Data Downloaded</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <h4 class="text-warning">@fileStatistics.FilesToday</h4>
+                                    <small class="text-muted">New Files Today</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- File View Modal -->
+@if (showFileViewModal && selectedFile != null)
+{
+    <FileViewModal @ref="fileViewModalRef"
+                  File="selectedFile"
+                  IsVisible="showFileViewModal"
+                  AllowEdit="false"
+                  AllowDelete="false"
+                  ShowStudentView="true"
+                  OnClose="CloseFileViewModal" />
+}
+
+@code {
+    private FileBrowser? fileBrowserRef;
+    private FileViewModal? fileViewModalRef;
+    
+    private List<FileDocument> allFiles = new();
+    private FileStatistics? fileStatistics;
+    private FileDocument? selectedFile;
+    
+    private string selectedTab = "all";
+    private string currentSorting = "date";
+    private bool showFileViewModal = false;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFiles();
+        await LoadFileStatistics();
+        isLoading = false;
+    }
+
+    private async Task LoadFiles()
+    {
+        try
+        {
+            var userProfile = await UserContext.GetCurrentUserAsync();
+            if (userProfile != null)
+            {
+                allFiles = await FileService.GetUserAccessibleFilesAsync(
+                    userProfile.Id, 
+                    userProfile.Role);
+                
+                // Sort files based on current sorting preference
+                SortFiles();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading files: {ex.Message}");
+        }
+    }
+
+    private async Task LoadFileStatistics()
+    {
+        try
+        {
+            var userProfile = await UserContext.GetCurrentUserAsync();
+            if (userProfile != null)
+            {
+                fileStatistics = await FileService.GetFileStatisticsAsync(
+                    userProfile.Id, 
+                    userProfile.Role);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading file statistics: {ex.Message}");
+        }
+    }
+
+    private List<FileDocument> GetFilteredFiles()
+    {
+        return selectedTab switch
+        {
+            "assignments" => allFiles.Where(f => f.FileType == FileType.Assignment).ToList(),
+            "notes" => allFiles.Where(f => f.FileType == FileType.Notes || f.FileType == FileType.StudyMaterial).ToList(),
+            "results" => allFiles.Where(f => f.FileType == FileType.Result).ToList(),
+            "notices" => allFiles.Where(f => f.FileType == FileType.Notice || f.FileType == FileType.Circular).ToList(),
+            _ => allFiles
+        };
+    }
+
+    private string GetEmptyStateMessage()
+    {
+        return selectedTab switch
+        {
+            "assignments" => "No assignments have been uploaded yet. Check back later for new assignments from your teachers.",
+            "notes" => "No study materials are available at the moment. Your teachers will upload notes and materials here.",
+            "results" => "No results have been published yet. Exam results will appear here once they are available.",
+            "notices" => "No notices are currently active. Important announcements and notices will be displayed here.",
+            _ => "No files are available for download at the moment. Content will appear here as it becomes available."
+        };
+    }
+
+    private void ChangeTab(string tab)
+    {
+        selectedTab = tab;
+        StateHasChanged();
+    }
+
+    private void ChangeSorting(string sortBy)
+    {
+        currentSorting = sortBy;
+        SortFiles();
+        StateHasChanged();
+    }
+
+    private void SortFiles()
+    {
+        allFiles = currentSorting switch
+        {
+            "name" => allFiles.OrderBy(f => f.OriginalFileName).ToList(),
+            "subject" => allFiles.OrderBy(f => f.SubjectName).ThenBy(f => f.OriginalFileName).ToList(),
+            "size" => allFiles.OrderByDescending(f => f.FileSize).ToList(),
+            _ => allFiles.OrderByDescending(f => f.UploadDate).ToList()
+        };
+    }
+
+    private async Task RefreshFiles()
+    {
+        isLoading = true;
+        await LoadFiles();
+        await LoadFileStatistics();
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private void OnFileSelected(FileDocument file)
+    {
+        selectedFile = file;
+        showFileViewModal = true;
+    }
+
+    private void CloseFileViewModal()
+    {
+        showFileViewModal = false;
+        selectedFile = null;
+    }
+
+    private void ShowRecentFiles()
+    {
+        selectedTab = "all";
+        // Filter to show recent files (could be implemented with additional filtering)
+        StateHasChanged();
+    }
+
+    private void ShowOverdueAssignments()
+    {
+        selectedTab = "assignments";
+        StateHasChanged();
+    }
+}
+
+<style>
+    .icon-circle {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    
+    .nav-pills .nav-link.active {
+        background-color: #0d6efd;
+        color: white;
+    }
+    
+    .nav-pills .nav-link:not(.active) {
+        color: #6c757d;
+        background-color: transparent;
+    }
+    
+    .nav-pills .nav-link:not(.active):hover {
+        background-color: #f8f9fa;
+        color: #495057;
+    }
+    
+    .card {
+        transition: all 0.3s ease;
+    }
+    
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+    }    
+    .alert {
+        border-radius: 10px;
+    }
+    
+    @@media (max-width: 576px) {
+        .nav-pills .nav-link {
+            padding: 0.5rem 0.25rem;
+            font-size: 0.875rem;
+        }
+        
+        .icon-circle {
+            width: 50px;
+            height: 50px;
+            font-size: 1.25rem;
+        }
+    }
+</style>

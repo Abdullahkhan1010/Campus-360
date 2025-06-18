@@ -1,0 +1,322 @@
+@page "/student/calendar"
+@using Campus360.Models
+@using Campus360.Services
+@using Campus360.Components.Calendar
+@inject CalendarService CalendarService
+@inject UserContextService UserContext
+@inject IJSRuntime JSRuntime
+@layout StudentLayout
+
+<PageTitle>Academic Calendar - Campus360</PageTitle>
+
+<div class="container-fluid px-4 py-3">
+    <!-- Calendar Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="h4 mb-0 text-primary">
+                        <i class="fas fa-calendar-alt me-2"></i>My Academic Calendar
+                    </h2>
+                    <p class="text-muted mb-0">Track your assignments, exams, and important academic events</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary btn-sm" @onclick="RefreshCalendar">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                    <button class="btn btn-primary btn-sm" @onclick="() => SwitchView(CalendarViewType.Timeline)">
+                        <i class="fas fa-list me-1"></i>Timeline View
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="text-primary mb-2">
+                        <i class="fas fa-calendar-day fa-2x"></i>
+                    </div>
+                    <h5 class="mb-1">@CalendarStats?.TodayEvents ?? 0</h5>
+                    <small class="text-muted">Today's Events</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="text-warning mb-2">
+                        <i class="fas fa-tasks fa-2x"></i>
+                    </div>
+                    <h5 class="mb-1">@CalendarStats?.UpcomingAssignments ?? 0</h5>
+                    <small class="text-muted">Due Soon</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="text-danger mb-2">
+                        <i class="fas fa-graduation-cap fa-2x"></i>
+                    </div>
+                    <h5 class="mb-1">@CalendarStats?.UpcomingExams ?? 0</h5>
+                    <small class="text-muted">Upcoming Exams</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="text-info mb-2">
+                        <i class="fas fa-calendar-week fa-2x"></i>
+                    </div>
+                    <h5 class="mb-1">@CalendarStats?.ThisWeekEvents ?? 0</h5>
+                    <small class="text-muted">This Week</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (CurrentViewType == CalendarViewType.Timeline)
+    {
+        <!-- Timeline View -->
+        <div class="card border-0 shadow">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>Academic Timeline
+                    </h5>
+                    <button class="btn btn-outline-primary btn-sm" @onclick="() => SwitchView(CalendarViewType.Month)">
+                        <i class="fas fa-calendar me-1"></i>Calendar View
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                @if (TimelineGroups?.Any() == true)
+                {
+                    @foreach (var group in TimelineGroups)
+                    {
+                        <div class="timeline-group mb-4">
+                            <div class="timeline-header d-flex align-items-center mb-3">
+                                <div class="badge @(group.IsToday ? "bg-primary" : group.IsPast ? "bg-secondary" : "bg-success") me-2">
+                                    @group.GroupTitle
+                                </div>
+                                <small class="text-muted">@group.EventCount event(s)</small>
+                            </div>
+                            
+                            @foreach (var timelineEvent in group.Events)
+                            {
+                                <div class="timeline-item d-flex mb-3 @(timelineEvent.IsPast ? "opacity-75" : "")">
+                                    <div class="timeline-marker me-3">
+                                        <div class="rounded-circle d-flex align-items-center justify-content-center" 
+                                             style="width: 40px; height: 40px; background-color: @timelineEvent.Color">
+                                            <i class="@timelineEvent.IconClass text-white"></i>
+                                        </div>
+                                    </div>
+                                    <div class="timeline-content flex-grow-1">
+                                        <div class="card border-start-0" style="border-left: 3px solid @timelineEvent.Color !important;">
+                                            <div class="card-body py-3">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div>
+                                                        <h6 class="mb-1 @(timelineEvent.IsCompleted ? "text-decoration-line-through" : "")">
+                                                            @timelineEvent.Title
+                                                        </h6>
+                                                        <p class="text-muted small mb-2">@timelineEvent.Description</p>
+                                                        @if (!string.IsNullOrEmpty(timelineEvent.CourseInfo))
+                                                        {
+                                                            <span class="badge bg-light text-dark">
+                                                                <i class="fas fa-book me-1"></i>@timelineEvent.CourseInfo
+                                                            </span>
+                                                        }
+                                                        @if (!string.IsNullOrEmpty(timelineEvent.Venue))
+                                                        {
+                                                            <span class="badge bg-light text-dark ms-1">
+                                                                <i class="fas fa-map-marker-alt me-1"></i>@timelineEvent.Venue
+                                                            </span>
+                                                        }
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <small class="text-muted">@timelineEvent.TimeAgo</small>
+                                                        @if (timelineEvent.Priority == EventPriority.High || timelineEvent.Priority == EventPriority.Critical)
+                                                        {
+                                                            <br><span class="badge bg-danger">High Priority</span>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="text-center py-5">
+                        <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No events found</h5>
+                        <p class="text-muted">Your academic timeline will appear here</p>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Calendar View -->
+        <div class="card border-0 shadow">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar me-2"></i>Monthly Calendar View
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                @if (CalendarViewModel != null)
+                {
+                    <CalendarView UserId="@UserContext.CurrentUser?.Id"
+                                  UserRole="@UserContext.CurrentUser?.Role"
+                                  ShowCreateButton="false" />
+                }
+                else
+                {
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading calendar...</span>
+                        </div>
+                        <p class="text-muted mt-2">Loading your calendar...</p>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Quick Actions Card -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-bolt me-2"></i>Quick Actions
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <a href="/student/assignments" class="btn btn-outline-primary w-100 mb-2">
+                                <i class="fas fa-tasks me-2"></i>View Assignments
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/student/results" class="btn btn-outline-success w-100 mb-2">
+                                <i class="fas fa-chart-line me-2"></i>Check Results
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/student/attendance" class="btn btn-outline-warning w-100 mb-2">
+                                <i class="fas fa-user-check me-2"></i>Attendance
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/student/notices" class="btn btn-outline-info w-100 mb-2">
+                                <i class="fas fa-bullhorn me-2"></i>Latest Notices
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private CalendarViewModel? CalendarViewModel;
+    private List<TimelineGroup>? TimelineGroups;
+    private CalendarStats? CalendarStats;
+    private CalendarViewType CurrentViewType = CalendarViewType.Month;
+    private bool IsLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCalendarData();
+    }
+
+    private async Task LoadCalendarData()
+    {
+        IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var userId = UserContext.CurrentUser?.Id ?? "s1";
+            var userRole = UserContext.CurrentUser?.Role ?? "Student";
+
+            // Load calendar view and timeline
+            var calendarTask = CalendarService.GetCalendarViewAsync(userId, userRole, CurrentViewType);
+            var timelineTask = CalendarService.GetTimelineAsync(userId, userRole);
+            var statsTask = CalendarService.GetCalendarStatsAsync(userId, userRole);
+
+            await Task.WhenAll(calendarTask, timelineTask, statsTask);
+
+            CalendarViewModel = await calendarTask;
+            TimelineGroups = await timelineTask;
+            CalendarStats = await statsTask;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading calendar data: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SwitchView(CalendarViewType viewType)
+    {
+        CurrentViewType = viewType;
+        await LoadCalendarData();
+    }
+
+    private async Task RefreshCalendar()
+    {
+        await LoadCalendarData();
+        
+        // Show success toast
+        await JSRuntime.InvokeVoidAsync("showToast", "success", "Calendar refreshed successfully!");
+    }
+}
+
+<style>
+    .timeline-marker {
+        flex-shrink: 0;
+    }
+    
+    .timeline-item:not(:last-child)::before {
+        content: '';
+        position: absolute;
+        left: 19px;
+        top: 40px;
+        bottom: -20px;
+        width: 2px;
+        background: #e9ecef;
+        z-index: 1;
+    }
+    
+    .timeline-group {
+        position: relative;
+    }
+
+    .card {
+        transition: all 0.3s ease;
+    }
+    
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+    }
+</style>

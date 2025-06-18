@@ -1,0 +1,226 @@
+@using Campus360.Models
+@using Campus360.Services
+
+<div class="week-view-container">
+    @if (IsLoading)
+    {
+        <div class="text-center p-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading events...</p>
+        </div>
+    }
+    else
+    {
+        <div class="week-header d-flex">
+            @foreach (var day in WeekDays)
+            {
+                <div class="week-day-header @(day.Date.Date == DateTime.Today.Date ? "today" : "")"
+                     style="width: calc(100% / 7);">
+                    <div class="week-day-name">@day.ToString("ddd")</div>
+                    <div class="week-day-date">@day.ToString("MMM dd")</div>
+                </div>
+            }
+        </div>
+        
+        <div class="week-grid">
+            <div class="time-column">
+                @foreach (var hour in Enumerable.Range(StartHour, EndHour - StartHour + 1))
+                {
+                    <div class="hour-slot">
+                        <span>@(hour == 0 ? "12 AM" : hour < 12 ? $"{hour} AM" : hour == 12 ? "12 PM" : $"{hour - 12} PM")</span>
+                    </div>
+                }
+            </div>
+            
+            <div class="week-events-grid">
+                @foreach (var day in WeekDays)
+                {
+                    <div class="day-column">
+                        @foreach (var hour in Enumerable.Range(StartHour, EndHour - StartHour + 1))
+                        {
+                            <div class="hour-cell @(day.Date.Date == DateTime.Today.Date ? "today" : "")">
+                                @{
+                                    var eventsInThisHour = Events.Where(e => 
+                                        e.StartDate.Date == day.Date && 
+                                        ((e.StartDate.Hour <= hour && (e.EndDate.HasValue ? e.EndDate.Value.Hour >= hour : e.StartDate.Hour == hour)) || 
+                                         e.IsAllDay && e.StartDate.Date == day.Date)).ToList();
+                                }
+                                
+                                @if (eventsInThisHour.Any())
+                                {
+                                    @foreach (var evt in eventsInThisHour.Take(MaxEventsPerCell))
+                                    {
+                                        <div class="week-event @(evt.IsAllDay ? "all-day-event" : "")"
+                                             style="background-color: @evt.Color"
+                                             @onclick="() => OnEventClick.InvokeAsync(evt)">
+                                            <div class="event-title">@evt.Title</div>
+                                            @if (!evt.IsAllDay)
+                                            {
+                                                <div class="event-time">
+                                                    @evt.StartDate.ToString("HH:mm")
+                                                    @if (evt.EndDate.HasValue)
+                                                    {
+                                                        <span> - @evt.EndDate.Value.ToString("HH:mm")</span>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                    
+                                    @if (eventsInThisHour.Count > MaxEventsPerCell)
+                                    {
+                                        <div class="more-events">+@(eventsInThisHour.Count - MaxEventsPerCell) more</div>
+                                    }
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<AcademicEvent> Events { get; set; } = new();
+    [Parameter] public DateTime CurrentDate { get; set; } = DateTime.Today;
+    [Parameter] public EventCallback<AcademicEvent> OnEventClick { get; set; }
+    [Parameter] public bool IsLoading { get; set; }
+    
+    // Configuration
+    [Parameter] public int StartHour { get; set; } = 8;  // 8 AM
+    [Parameter] public int EndHour { get; set; } = 20;   // 8 PM
+    [Parameter] public int MaxEventsPerCell { get; set; } = 3;
+    
+    private List<DateTime> WeekDays { get; set; } = new();
+    
+    protected override void OnParametersSet()
+    {
+        GenerateWeekDays();
+    }
+    
+    private void GenerateWeekDays()
+    {
+        // Get the start date of the week (Sunday)
+        var startOfWeek = CurrentDate.AddDays(-(int)CurrentDate.DayOfWeek);
+        
+        WeekDays = Enumerable.Range(0, 7)
+                            .Select(offset => startOfWeek.AddDays(offset))
+                            .ToList();
+    }
+}
+
+<style>
+    .week-view-container {
+        width: 100%;
+        background: white;
+        border-radius: 0.25rem;
+        overflow: hidden;
+    }
+    
+    .week-header {
+        display: flex;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        padding-left: 60px; /* Match width of time column */
+    }
+    
+    .week-day-header {
+        padding: 10px;
+        text-align: center;
+        font-weight: 500;
+    }
+    
+    .week-day-name {
+        font-size: 0.9rem;
+    }
+    
+    .week-day-date {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    
+    .today {
+        background-color: rgba(13, 110, 253, 0.05);
+        font-weight: 700;
+    }
+    
+    .week-grid {
+        display: flex;
+    }
+    
+    .time-column {
+        width: 60px;
+        flex-shrink: 0;
+    }
+    
+    .hour-slot {
+        height: 60px;
+        padding: 5px;
+        text-align: right;
+        font-size: 0.7rem;
+        color: #6c757d;
+        position: relative;
+        border-right: 1px solid #dee2e6;
+    }
+    
+    .hour-slot span {
+        position: relative;
+        top: -10px;
+    }
+    
+    .week-events-grid {
+        display: flex;
+        flex-grow: 1;
+    }
+    
+    .day-column {
+        width: calc(100% / 7);
+        border-right: 1px solid #f0f0f0;
+    }
+    
+    .day-column:last-child {
+        border-right: none;
+    }
+    
+    .hour-cell {
+        height: 60px;
+        border-bottom: 1px solid #f0f0f0;
+        padding: 2px;
+        overflow: hidden;
+    }
+    
+    .week-event {
+        margin-bottom: 2px;
+        padding: 2px 4px;
+        border-radius: 3px;
+        color: white;
+        font-size: 0.7rem;
+        cursor: pointer;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .all-day-event {
+        background-color: #007bff;
+    }
+    
+    .event-title {
+        font-weight: 500;
+    }
+    
+    .event-time {
+        font-size: 0.65rem;
+        opacity: 0.9;
+    }
+    
+    .more-events {
+        font-size: 0.7rem;
+        text-align: center;
+        color: #0d6efd;
+        cursor: pointer;
+    }
+</style>
